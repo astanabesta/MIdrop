@@ -3,7 +3,7 @@
 A test Android app for sharing files after an NFC tap. It requires both phones to have NFC, Google Play services, Wi-Fi, Bluetooth and MIdrop installed. The intended flow has not yet been verified end-to-end on physical phones; keep the manual Nearby fallback if needed.
 
 ## Install
-Open the [Actions tab](https://github.com/astanabesta/MIdrop/actions), select the most recent successful **Android debug APK** run, download **midrop-debug**, extract the ZIP, and install the APK on both phones. Debug APKs are for testing, not production distribution. On Android you may need to allow installation from your browser or file manager.
+Download the APK directly: [MIdrop-debug.apk](https://github.com/astanabesta/MIdrop/releases/download/debug-latest/MIdrop-debug.apk). Each successful build of the main branch updates this file. Install it on both phones. Debug APKs are for testing, not production distribution. Android may ask you to allow installation from your browser or file manager. If an older build cannot be updated because it was signed with a different debug key, uninstall the older app first (this removes its local app data), then reinstall and repeat permission setup. The [Actions tab](https://github.com/astanabesta/MIdrop/actions) also offers a ZIP artifact as a backup.
 
 ## One-time setup, on each phone
 1. Open MIdrop and tap **Set up background receiving**. Grant nearby, notification and any other requested permissions. Enable notification alerts for MIdrop. Enable NFC, Bluetooth and Wi-Fi.
