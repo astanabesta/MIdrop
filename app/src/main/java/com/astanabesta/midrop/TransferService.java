@@ -62,18 +62,21 @@ public final class TransferService extends Service {
             finishWith("Request expired or already handled.", false); return START_NOT_STICKY;
         }
         prefs.edit().putBoolean("pending", false).apply(); offer = parsed;
+        Diagnostics.event(this, "Receiver: request accepted; starting nearby discovery.");
         handler.postDelayed(timeout, 120_000);
         client.startDiscovery(SERVICE_ID, discovery, new DiscoveryOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build())
-            .addOnFailureListener(e -> finishWith("Couldn't discover sender. Check nearby permissions and try again.", false));
+            .addOnSuccessListener(v -> Diagnostics.event(this, "Receiver: nearby discovery started."))
+            .addOnFailureListener(e -> { Diagnostics.error(this, "Receiver: discovery failed", e); finishWith("Couldn't discover sender. Check nearby permissions and try again.", false); });
         return START_NOT_STICKY;
     }
     private void refreshTimeout() { handler.removeCallbacks(timeout); handler.postDelayed(timeout, 120_000); }
     private final EndpointDiscoveryCallback discovery = new EndpointDiscoveryCallback() {
         @Override public void onEndpointFound(String id, DiscoveredEndpointInfo info) {
             if (!terminal && offer != null && !requested && offer.publicName().equals(info.getEndpointName())) {
+                Diagnostics.event(TransferService.this, "Receiver: matching sender found; requesting connection.");
                 requested = true;
                 client.requestConnection("MIdrop receiver", id, lifecycle)
-                    .addOnFailureListener(e -> finishWith("Couldn't connect to sender.", false));
+                    .addOnFailureListener(e -> { Diagnostics.error(TransferService.this, "Receiver: request connection failed", e); finishWith("Couldn't connect to sender.", false); });
             }
         }
         @Override public void onEndpointLost(String id) { }
@@ -81,11 +84,13 @@ public final class TransferService extends Service {
     private final ConnectionLifecycleCallback lifecycle = new ConnectionLifecycleCallback() {
         @Override public void onConnectionInitiated(String id, ConnectionInfo info) {
             if (terminal || offer == null || System.currentTimeMillis() - offer.created > TapOffer.TTL_MS) { client.rejectConnection(id); return; }
+            Diagnostics.event(TransferService.this, "Receiver: nearby connection initiated.");
             digits = info.getAuthenticationDigits();
             client.acceptConnection(id, payloads).addOnFailureListener(e -> finishWith("Connection failed.", false));
         }
         @Override public void onConnectionResult(String id, ConnectionResolution result) {
-            if (!result.getStatus().isSuccess()) { finishWith("Connection failed.", false); return; }
+            if (!result.getStatus().isSuccess()) { Diagnostics.event(TransferService.this, "Receiver: connection failed (Nearby code " + result.getStatus().getStatusCode() + ")."); finishWith("Connection failed.", false); return; }
+            Diagnostics.event(TransferService.this, "Receiver: connection established.");
             endpoint = id; client.stopDiscovery(); refreshTimeout(); update("Verifying secure connection…", -1);
             try {
                 JSONObject m = new JSONObject(); m.put("kind", "proof");
@@ -93,7 +98,7 @@ public final class TransferService extends Service {
             } catch (Exception e) { finishWith("Couldn't verify the connection.", false); }
         }
         @Override public void onDisconnected(String id) {
-            endpoint = null;
+            Diagnostics.event(TransferService.this, "Receiver: nearby disconnected."); endpoint = null;
             if (!terminal) finishWith("Sender disconnected before the transfer finished.", false);
         }
     };
@@ -117,12 +122,12 @@ public final class TransferService extends Service {
                     if (kind.equals("proof") && !verified) {
                         byte[] proof = Base64.decode(m.getString("proof"), Base64.DEFAULT);
                         if (!SessionProof.verify(offer.secret, offer.id, digits, "sender", proof)) { finishWith("Security verification failed. No file received.", false); return; }
-                        verified = true; update("Waiting for files…", -1);
+                        Diagnostics.event(TransferService.this, "Receiver: NFC session verified."); verified = true; update("Waiting for files…", -1);
                     } else if (!verified) finishWith("Unverified sender.", false);
                     else if (kind.equals("file") && incoming == null && !saving && !expecting && received < offer.count) {
                         filename = safeName(m.optString("name", "file")); mime = m.optString("mime", "application/octet-stream");
                         if (mime.length() > 128 || !mime.contains("/")) mime = "application/octet-stream";
-                        expecting = true; lastPercent = -1; sendKind("ready"); update("Receiving file " + (received + 1) + " of " + offer.count, 0);
+                        Diagnostics.event(TransferService.this, "Receiver: file offer received."); expecting = true; lastPercent = -1; sendKind("ready"); update("Receiving file " + (received + 1) + " of " + offer.count, 0);
                     } else if (kind.equals("done") && received == offer.count && !saving) finishWith("All " + received + (received == 1 ? " file saved." : " files saved."), true);
                 } catch (Exception e) { finishWith("Invalid or unverifiable transfer message.", false); }
             } else if (payload.getType() == Payload.Type.FILE) {
@@ -133,7 +138,7 @@ public final class TransferService extends Service {
             if (terminal || incoming == null || u.getPayloadId() != incoming.getId()) return;
             refreshTimeout();
             if (u.getStatus() == PayloadTransferUpdate.Status.SUCCESS) {
-                Payload file = incoming; incoming = null; expecting = false; saving = true; update("Saving file " + (received + 1) + " of " + offer.count + "…", -1); save(file, filename, mime);
+                Diagnostics.event(TransferService.this, "Receiver: file payload received; saving."); Payload file = incoming; incoming = null; expecting = false; saving = true; update("Saving file " + (received + 1) + " of " + offer.count + "…", -1); save(file, filename, mime);
             } else if (u.getStatus() == PayloadTransferUpdate.Status.FAILURE || u.getStatus() == PayloadTransferUpdate.Status.CANCELED) {
                 finishWith("File transfer failed or was cancelled.", false);
             } else if (u.getTotalBytes() > 0) {
@@ -182,6 +187,9 @@ public final class TransferService extends Service {
                 .setCategory(Notification.CATEGORY_PROGRESS).setProgress(100, Math.max(0, percent), percent < 0)
                 .addAction(new Notification.Action.Builder(null, "Cancel", stop).build());
         if (Build.VERSION.SDK_INT >= 36) {
+            Notification.ProgressStyle style = new Notification.ProgressStyle();
+            if (percent < 0) style.setProgressIndeterminate(true); else style.setProgress(percent);
+            b.setStyle(style);
             Bundle extras = new Bundle(); extras.putBoolean("android.requestPromotedOngoing", true);
             extras.putCharSequence("android.shortCriticalText", percent < 0 ? "Sharing" : percent + "%"); b.addExtras(extras);
         }
@@ -199,7 +207,7 @@ public final class TransferService extends Service {
         if (!terminal) getSystemService(NotificationManager.class).notify(ReceiverService.NOTIFICATION_ID, progressNotification(text, percent));
     }
     private void finishWith(String text, boolean success) {
-        if (terminal) return; terminal = true; handler.removeCallbacksAndMessages(null);
+        if (terminal) return; Diagnostics.event(this, "Receiver: " + text); terminal = true; handler.removeCallbacksAndMessages(null);
         client.stopDiscovery(); client.stopAllEndpoints();
         stopForeground(STOP_FOREGROUND_REMOVE);
         Intent open = new Intent(this, SharingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);

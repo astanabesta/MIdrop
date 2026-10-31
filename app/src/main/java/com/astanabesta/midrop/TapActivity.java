@@ -96,9 +96,10 @@ public class TapActivity extends Activity {
     private void startSession() {
         if (sender) {
             if (nfc == null || !nfc.isEnabled()) { show("Turn NFC on and retry the share."); return; }
+            Diagnostics.event(this, "Sender: starting nearby advertising.");
             client.startAdvertising(offer.publicName(), SERVICE, lifecycle, new AdvertisingOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build())
-                .addOnSuccessListener(v -> { advertising = true; show("Touch the backs of both unlocked phones together. Keep this screen open."); enableNfc(); })
-                .addOnFailureListener(e -> show("Could not start sharing: " + e.getMessage()));
+                .addOnSuccessListener(v -> { Diagnostics.event(this, "Sender: advertising ready."); advertising = true; show("Touch the backs of both unlocked phones together. Keep this screen open."); enableNfc(); })
+                .addOnFailureListener(e -> { Diagnostics.error(this, "Sender: advertising failed", e); show("Could not start sharing. Check nearby permissions."); });
         } else {
             show("Connecting to sender… Keep this screen open.");
             client.startDiscovery(SERVICE, discovery, new DiscoveryOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build())
@@ -112,8 +113,8 @@ public class TapActivity extends Activity {
             iso.connect(); if (!Protocol.isReply(iso.transceive(Protocol.select()))) throw new IllegalStateException("MIdrop receiver not found");
             byte[] reply = iso.transceive(offer.command());
             if (reply == null || reply.length != 2 || reply[0] != (byte)0x90 || reply[1] != 0) throw new IllegalStateException("Receiver unavailable or notifications disabled");
-            runOnUiThread(() -> { requested = true; if (nfc != null) nfc.disableReaderMode(this); show("Request sent. Waiting for receiver to accept…"); });
-        } catch (Exception e) { runOnUiThread(() -> show("Tap failed: " + e.getMessage() + ". Check receiver setup and try again.")); }
+            runOnUiThread(() -> { Diagnostics.event(this, "Sender: NFC request delivered."); requested = true; if (nfc != null) nfc.disableReaderMode(this); show("Request sent. Waiting for receiver to accept…"); });
+        } catch (Exception e) { Diagnostics.error(this, "Sender: NFC handoff failed", e); runOnUiThread(() -> show("Tap failed: " + e.getMessage() + ". Check receiver setup and try again.")); }
         finally { try { iso.close(); } catch (Exception ignored) {} }
     }
     private final EndpointDiscoveryCallback discovery = new EndpointDiscoveryCallback() {
@@ -127,18 +128,20 @@ public class TapActivity extends Activity {
     private final ConnectionLifecycleCallback lifecycle = new ConnectionLifecycleCallback() {
         @Override public void onConnectionInitiated(String id, ConnectionInfo info) {
             if (offer == null || System.currentTimeMillis() - offer.created > TapOffer.TTL_MS || (sender && !requested)) { client.rejectConnection(id); return; }
+            Diagnostics.event(TapActivity.this, "Sender: nearby connection initiated.");
             digits = info.getAuthenticationDigits();
             client.acceptConnection(id, payloads).addOnFailureListener(e -> show("Connection failed: " + e.getMessage()));
         }
         @Override public void onConnectionResult(String id, ConnectionResolution result) {
-            if (!result.getStatus().isSuccess()) { show("Connection rejected or failed."); return; }
+            if (!result.getStatus().isSuccess()) { Diagnostics.event(TapActivity.this, "Sender: connection failed (Nearby code " + result.getStatus().getStatusCode() + ")."); show("Connection rejected or failed."); return; }
+            Diagnostics.event(TapActivity.this, "Sender: connection established.");
             endpoint = id; client.stopDiscovery(); client.stopAdvertising(); show("Verifying NFC session…");
             try {
                 JSONObject m = new JSONObject(); m.put("kind","proof");
                 m.put("proof", Base64.encodeToString(SessionProof.calculate(offer.secret,offer.id,digits,sender ? "sender" : "receiver"),Base64.NO_WRAP)); send(m);
             } catch (Exception e) { fail("Could not verify connection."); }
         }
-        @Override public void onDisconnected(String id) { endpoint = null; closeOutgoing(); if (!isFinishing()) show("Disconnected. Retry the share if it did not finish."); }
+        @Override public void onDisconnected(String id) { Diagnostics.event(TapActivity.this, "Sender: nearby disconnected."); endpoint = null; closeOutgoing(); if (!isFinishing()) show("Disconnected. Retry the share if it did not finish."); }
     };
     private void send(JSONObject m) { if (endpoint != null) client.sendPayload(endpoint,Payload.fromBytes(m.toString().getBytes(StandardCharsets.UTF_8))).addOnFailureListener(e -> fail("Message failed.")); }
     private void simple(String kind) { try { JSONObject j = new JSONObject(); j.put("kind",kind); send(j); } catch (Exception e) { fail("Message failed."); } }
@@ -151,7 +154,7 @@ public class TapActivity extends Activity {
                     if (kind.equals("proof") && !verified) {
                         byte[] proof = Base64.decode(msg.getString("proof"),Base64.DEFAULT);
                         if (!SessionProof.verify(offer.secret,offer.id,digits,sender ? "receiver" : "sender",proof)) { fail("Security verification failed. No file sent."); return; }
-                        verified = true; show("Verified. " + (sender ? "Preparing files…" : "Waiting for files…")); if (sender) sendManifest();
+                        Diagnostics.event(TapActivity.this, "Sender: NFC session verified."); verified = true; show("Verified. " + (sender ? "Preparing files…" : "Waiting for files…")); if (sender) sendManifest();
                     } else if (!verified) fail("Unverified sender.");
                     else if (!sender && kind.equals("file") && incoming == null && !saving && !offerAccepted && receivedCount < offer.count) {
                         incomingName = safeName(msg.optString("name", "file")); incomingMime = msg.optString("mime", "application/octet-stream");
@@ -212,9 +215,9 @@ public class TapActivity extends Activity {
         }).start();
     }
     private void closeOutgoing() { if (outgoing != null) try { outgoing.close(); } catch (Exception ignored) {} outgoing = null; outgoingId = -1; }
-    private void fail(String error) { show(error); client.stopAllEndpoints(); closeOutgoing(); }
+    private void fail(String error) { Diagnostics.event(this, "Sender: transfer failed."); show(error); client.stopAllEndpoints(); closeOutgoing(); }
     private void show(String text) { status.setText(text); }
-    @Override protected void onPause() { if (nfc != null) nfc.disableReaderMode(this); super.onPause(); }
+    @Override protected void onPause() { if (sender) Diagnostics.event(this, "Sender: activity paused."); if (nfc != null) nfc.disableReaderMode(this); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if (sender && offer != null && !requested) enableNfc(); }
-    @Override protected void onDestroy() { if (nfc != null) nfc.disableReaderMode(this); client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); closeOutgoing(); super.onDestroy(); }
+    @Override protected void onDestroy() { if (sender) Diagnostics.event(this, "Sender: activity ended; nearby stopped."); if (nfc != null) nfc.disableReaderMode(this); client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); closeOutgoing(); super.onDestroy(); }
 }

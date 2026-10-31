@@ -28,3 +28,6 @@ The short-lived incoming request now asks Android to promote it as an ongoing no
 
 ### Experimental iPhone compatibility test
 MIdrop's **Test iPhone NFC** screen is a diagnostic only; it does not detect iPhone identity or send by AirDrop. When an iPhone is available, follow [the test plan](docs/iphone-feasibility.md) and share the results. MIdrop cannot yet automatically select an iPhone or send to its AirDrop without the system picker.
+
+### Connection diagnostics
+After a failed transfer, open MIdrop on **each phone** → **View connection diagnostics**. Tap **Copy** and share each log labelled sender or receiver. The local log stores event stages, times and error codes—not file names, network addresses or session secrets. Tap Clear to remove it. Keep the sender screen open during the test. Try the tap, accept, then move the devices apart while keeping them nearby. The logs help distinguish an NFC handoff, Nearby discovery, connection, verification, or transfer failure; they do not themselves fix the connection.

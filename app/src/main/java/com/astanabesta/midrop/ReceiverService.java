@@ -16,7 +16,7 @@ public class ReceiverService extends HostApduService {
     private static final byte[] OK = {(byte) 0x90, 0};
     @Override public byte[] processCommandApdu(byte[] command, Bundle extras) {
         if (Protocol.isSelect(command)) {
-            EventLog.add(this, "Receiver: NFC tap detected.");
+            Diagnostics.event(this, "Receiver: NFC select received.");
             return Protocol.reply();
         }
         TapOffer offer = TapOffer.parse(command, System.currentTimeMillis());
@@ -54,6 +54,7 @@ public class ReceiverService extends HostApduService {
             builder.addExtras(promotion).setOngoing(true).setOnlyAlertOnce(true);
         }
         Notification n = builder.build();
+        Diagnostics.event(this, "Receiver: incoming request notification posted.");
         manager.notify(NOTIFICATION_ID, n);
         return OK;
     }

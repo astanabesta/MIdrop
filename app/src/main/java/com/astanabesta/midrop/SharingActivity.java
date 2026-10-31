@@ -80,6 +80,7 @@ public class SharingActivity extends Activity {
         button(root,"Stop / start over", this::reset);
         Ui.space(this,root,10);
         TextView experimental = Ui.text(this,"EXPERIMENTAL TOOLS",10,Ui.MUTED,true); root.addView(experimental);
+        button(root,"View connection diagnostics", this::showDiagnostics);
         button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
         button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));
         Ui.space(this,root,8);
@@ -89,6 +90,17 @@ public class SharingActivity extends Activity {
         readSharedIntent(getIntent()); updatePhoto();
     }
     private void button(LinearLayout root, String label, Runnable action) { Button b = Ui.button(this, label, label.equals("Set up background receiving"), action); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, Ui.dp(this,50)); p.bottomMargin = Ui.dp(this,8); root.addView(b,p); }
+    private void showDiagnostics() {
+        String text = EventLog.read(this);
+        new AlertDialog.Builder(this).setTitle("Connection diagnostics")
+                .setMessage("Local event log — no file names, addresses or keys. Times are shown on this phone.\n\n" + text)
+                .setPositiveButton("Copy", (d,w) -> {
+                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("MIdrop diagnostics", text));
+                })
+                .setNeutralButton("Clear", (d,w) -> EventLog.clear(this))
+                .setNegativeButton("Close", null).show();
+    }
     private void readSharedIntent(Intent intent) {
         if (Intent.ACTION_SEND.equals(intent.getAction()) && intent.getType() != null && intent.getType().startsWith("image/")) {
             Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);
