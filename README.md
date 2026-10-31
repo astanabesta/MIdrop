@@ -22,3 +22,6 @@ Open the app and use the existing **Receive a photo** and **Find devices and sen
 
 ## Testing
 The NFC handshake test remains accessible from the home screen. See [architecture](docs/architecture.md) and [tap-sharing plan](docs/design/tap-sharing-plan.md). With JDK 17, Android SDK 35 and Gradle 8.9: `gradle testDebugUnitTest assembleDebug`. CI tests and builds, but does not test real NFC, notifications, Nearby connections or phone-to-phone transfers.
+
+### Hyper Island experiment (Android 16)
+The short-lived incoming request now asks Android to promote it as an ongoing notification while the sender is waiting. Accept and Decline remain available, and the notification expires when the two-minute request expires. On supported Xiaomi software this may be shown in Hyper Island; the system and user settings make the final decision. Check MIdrop's notification settings for Live Updates or promoted notifications if available. On unsupported devices it remains a normal notification. The transfer must not be assumed to continue in the background.

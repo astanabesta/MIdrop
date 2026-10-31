@@ -36,13 +36,22 @@ public class ReceiverService extends HostApduService {
         PendingIntent yes = PendingIntent.getActivity(this, NOTIFICATION_ID, accept, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Intent decline = new Intent(this, DeclineReceiver.class);
         PendingIntent no = PendingIntent.getBroadcast(this, NOTIFICATION_ID, decline, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Notification n = new Notification.Builder(this, "offers").setSmallIcon(android.R.drawable.stat_sys_upload_done)
+        long remaining = Math.max(1, Math.min(TapOffer.TTL_MS, offer.created + TapOffer.TTL_MS - System.currentTimeMillis()));
+        Notification.Builder builder = new Notification.Builder(this, "offers").setSmallIcon(android.R.drawable.stat_sys_upload_done)
                 .setContentTitle("Nearby device wants to share")
                 .setContentText(offer.count + (offer.count == 1 ? " file" : " files") + " · accept or decline")
                 .setStyle(new Notification.BigTextStyle().bigText("A nearby device wants to share " + offer.count + (offer.count == 1 ? " file." : " files.")))
-                .setContentIntent(yes).setAutoCancel(true)
+                .setContentIntent(yes).setAutoCancel(true).setTimeoutAfter(remaining)
                 .addAction(new Notification.Action.Builder(null, "Decline", no).build())
-                .addAction(new Notification.Action.Builder(null, "Accept", yes).build()).build();
+                .addAction(new Notification.Action.Builder(null, "Accept", yes).build());
+        if (Build.VERSION.SDK_INT >= 36) {
+            // Android 16 promoted-notification extras; older releases retain the normal alert.
+            Bundle promotion = new Bundle();
+            promotion.putBoolean("android.requestPromotedOngoing", true);
+            promotion.putCharSequence("android.shortCriticalText", offer.count == 1 ? "1 file" : offer.count + " files");
+            builder.addExtras(promotion).setOngoing(true).setOnlyAlertOnce(true);
+        }
+        Notification n = builder.build();
         manager.notify(NOTIFICATION_ID, n);
         return OK;
     }
