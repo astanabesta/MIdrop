@@ -89,6 +89,7 @@ public class SharingActivity extends Activity {
                     : "Xiaomi did not report Focus Notification access, or this device could not check it. The normal Android notification remains available. HyperNotification cannot grant this access.")
                 .setPositiveButton("OK", null).show());
         });
+        button(root,"Run Super Island test", this::runIslandTest);
         button(root,"View connection diagnostics", this::showDiagnostics);
         button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
         button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));
@@ -99,6 +100,39 @@ public class SharingActivity extends Activity {
         readSharedIntent(getIntent()); updatePhoto();
     }
     private void button(LinearLayout root, String label, Runnable action) { Button b = Ui.button(this, label, label.equals("Set up background receiving"), action); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, Ui.dp(this,50)); p.bottomMargin = Ui.dp(this,8); root.addView(b,p); }
+    private static int islandTestGeneration;
+    private void runIslandTest() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            new AlertDialog.Builder(this).setMessage("Enable MIdrop notifications in Android settings before the test.").setPositiveButton("OK", null).show(); return;
+        }
+        HyperIslandDecorator.refresh(this, () -> {
+            if (!HyperIslandDecorator.available()) {
+                new AlertDialog.Builder(this).setMessage("Xiaomi did not report Focus Notification access. Check diagnostics; this test would only show a normal notification.").setPositiveButton("OK", null).show(); return;
+            }
+            android.content.Context app = getApplicationContext();
+            android.app.NotificationManager nm = app.getSystemService(android.app.NotificationManager.class);
+            String channel = "island_test"; int id = 9412; int generation = ++islandTestGeneration;
+            nm.createNotificationChannel(new android.app.NotificationChannel(channel, "Super Island test", android.app.NotificationManager.IMPORTANCE_DEFAULT));
+            android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
+            Diagnostics.event(app, "Super Island: 30-second test started.");
+            for (int i = 0; i <= 10; i++) {
+                final int progress = i * 10;
+                h.postDelayed(() -> {
+                    if (generation != islandTestGeneration) return;
+                    android.app.Notification.Builder b = new android.app.Notification.Builder(app, channel)
+                        .setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle("MIdrop · island test")
+                        .setContentText("Test progress " + progress + "%")
+                        .setOnlyAlertOnce(true).setOngoing(true).setProgress(100, progress, false)
+                        .addExtras(HyperIslandDecorator.extras(app, "Test progress", progress));
+                    nm.notify(id, b.build());
+                }, i * 3000L);
+            }
+            h.postDelayed(() -> { if (generation == islandTestGeneration) { nm.cancel(id); Diagnostics.event(app, "Super Island: test ended."); } }, 33000L);
+            new AlertDialog.Builder(this).setTitle("Super Island test running")
+                .setMessage("Return to your home screen and watch the camera area for 30 seconds. This is a simulated progress notification; no files are transferred. Then open connection diagnostics and copy the log.")
+                .setPositiveButton("OK", null).show();
+        });
+    }
     private void showDiagnostics() {
         String text = EventLog.read(this);
         new AlertDialog.Builder(this).setTitle("Connection diagnostics")

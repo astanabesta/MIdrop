@@ -11,6 +11,7 @@ import com.xzakota.hyper.notification.focus.util.FocusUtils
 /** Optional HyperNotification integration. Android notifications remain the fallback. */
 object HyperIslandDecorator {
     @Volatile private var granted = false
+    @Volatile private var reportedTemplate = false
 
     /** Xiaomi's provider query may be slow; keep it off the NFC and notification threads. */
     @JvmStatic fun refresh(context: Context, callback: Runnable?) {
@@ -18,6 +19,8 @@ object HyperIslandDecorator {
         Thread {
             val allowed = runCatching { FocusUtils.hasFocusPermission(app) }.getOrDefault(false)
             granted = allowed
+            val protocol = runCatching { FocusUtils.getFocusProtocolVersion(app) }.getOrDefault(-1)
+            Diagnostics.event(app, "Super Island: access reported=$allowed, protocol=$protocol.")
             if (callback != null) Handler(Looper.getMainLooper()).post(callback)
         }.start()
     }
@@ -28,9 +31,11 @@ object HyperIslandDecorator {
     @JvmStatic fun extras(context: Context, description: String, percent: Int): Bundle {
         if (!granted) return Bundle()
         return runCatching {
-            FocusNotification.buildV3 {
+            val result = FocusNotification.buildV3 {
                 business = "other"
                 updatable = true
+                reopen = "reopen"
+                islandFirstFloat = false
                 enableFloat = false
                 filterWhenNoPermission = false
                 ticker = if (percent < 0) "MIdrop" else "$percent%"
@@ -60,6 +65,14 @@ object HyperIslandDecorator {
                     smallIslandArea { picInfo { type = 1; pic = logo } }
                 }
             }
-        }.getOrElse { Bundle() }
+            if (!reportedTemplate) {
+                reportedTemplate = true
+                Diagnostics.event(context, "Super Island: template built, parameters present=" + result.containsKey("miui.focus.param") + ".")
+            }
+            result
+        }.getOrElse {
+            Diagnostics.event(context, "Super Island: template build failed (" + it.javaClass.simpleName + ").")
+            Bundle()
+        }
     }
 }
