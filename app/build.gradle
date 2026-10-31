@@ -5,11 +5,14 @@ android {
     compileSdk 35
     defaultConfig {
         applicationId 'com.astanabesta.midrop'
-        minSdk 23
+        minSdk 29
         targetSdk 35
         versionCode 1
         versionName '0.1'
     }
 }
 
-dependencies { testImplementation 'junit:junit:4.13.2' }
+dependencies {
+    implementation 'com.google.android.gms:play-services-nearby:19.3.0'
+    testImplementation 'junit:junit:4.13.2'
+}

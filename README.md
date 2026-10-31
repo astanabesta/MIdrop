@@ -1,17 +1,18 @@
-# MIdrop NFC feasibility test
+# MIdrop — photo sharing prototype
 
-A small Android prototype for testing whether two Redmi phones can perform an NFC reader-to-card-emulation handshake, including when the receiver app is backgrounded. This is not a file-sharing app. See [architecture and test plan](docs/architecture.md).
+A foreground Android prototype for sending one photo at a time between two Android phones with Google Play services. The sender can select a photo in the app or share one from Gallery; the receiver selects Receive, confirms the matching connection code, and explicitly accepts the photo. The received photo is saved under Pictures/MIdrop. Both devices must have the app, Google Play services, Bluetooth and Wi-Fi; permission and availability requirements vary by Android version.
 
-## Get the APK
-Open the repository's **Actions** tab, select a successful **Android debug APK** run, and download the **midrop-nfc-debug** artifact. Extract it, transfer the APK to both phones, and install it (Android may ask you to allow installs from that source). A debug APK is for testing, not production distribution.
+## Build and install
+Open [Actions](https://github.com/astanabesta/MIdrop/actions), select a successful **Android debug APK** workflow run for the latest commit, and download **midrop-nfc-debug**. Extract the ZIP and install the APK on both devices. This debug build is for testing, not production distribution.
 
-## Test
-1. Enable NFC and unlock both phones. Install and open the app on each. Check that the receiving phone reports HCE support.
-2. Select **Receiver mode** on one phone and **Sender mode** on the other. Leave sender on its screen; bring the backs of the phones close together, varying the position if needed.
-3. Look for a successful response on the sender and an event on the receiver. Record results.
-4. On the receiver press Home without locking it, then repeat. Reopen the app and refresh its log. Swap phone roles and repeat.
+## Test sharing
+1. Open the app on both phones, unlock them and turn on Bluetooth and Wi-Fi. Accept nearby permissions when asked (Android 12 and earlier may also request location and storage). Keep the app open on both phones.
+2. On the receiving phone, tap **Receive a photo**.
+3. On the sending phone, choose a photo, then tap **Find devices and send** and choose the receiver. You can also share an image to MIdrop from Gallery.
+4. Compare the code displayed on both phones. Only tap **Codes match** if they match. The receiver must then accept the photo.
+5. Wait until the receiver says it saved the image to Pictures/MIdrop. If a phone cannot find the other, verify permissions, Wi-Fi, Bluetooth, Google Play services, location services where applicable, and Xiaomi battery restrictions; retry using Stop / start over.
 
-Results are hardware- and settings-dependent. Nothing is shared or saved about another person. For NFC settings use the app button or search NFC in Android settings. Background response can fail even when NFC works.
+**Limitations:** A working foreground device-list fallback is implemented, but physical device behavior has not yet been verified. NFC proximity does not trigger sharing; the separate experimental NFC test screen only tests an APDU handshake. The app does not do background discovery, auto-pairing, remembered contacts, multiple-file transfers, or Apple's animation. Never approve a connection if the displayed codes differ.
 
-## Local build
-With JDK 17, Android SDK 35 and Gradle 8.9 installed: `gradle testDebugUnitTest assembleDebug`. CI builds the same debug target.
+## Development
+See [architecture](docs/architecture.md). With JDK 17, Android SDK 35 and Gradle 8.9: `gradle testDebugUnitTest assembleDebug`.
