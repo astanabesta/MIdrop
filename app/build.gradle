@@ -1,4 +1,7 @@
-plugins { id 'com.android.application' }
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
 
 android {
     namespace 'com.astanabesta.midrop'
@@ -14,5 +17,6 @@ android {
 
 dependencies {
     implementation 'com.google.android.gms:play-services-nearby:19.3.0'
+    implementation 'com.xzakota.hyper.notification:focus-api:1.4'
     testImplementation 'junit:junit:4.13.2'
 }

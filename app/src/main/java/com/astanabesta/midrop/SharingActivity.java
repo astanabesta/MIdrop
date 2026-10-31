@@ -45,6 +45,7 @@ public class SharingActivity extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         client = Nearby.getConnectionsClient(this);
+        HyperIslandDecorator.refresh(this, null);
         Ui.setupWindow(this);
         ScrollView page = new ScrollView(this); page.setFillViewport(true); page.setBackgroundColor(Ui.BACK);
         LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,22),Ui.dp(this,24),Ui.dp(this,28));
@@ -80,6 +81,14 @@ public class SharingActivity extends Activity {
         button(root,"Stop / start over", this::reset);
         Ui.space(this,root,10);
         TextView experimental = Ui.text(this,"EXPERIMENTAL TOOLS",10,Ui.MUTED,true); root.addView(experimental);
+        button(root,"Check Super Island access", () -> {
+            show("Checking Xiaomi Super Island access…");
+            HyperIslandDecorator.refresh(this, () -> new AlertDialog.Builder(this).setTitle("Super Island access")
+                .setMessage(HyperIslandDecorator.available()
+                    ? "Xiaomi reports Focus Notification access for MIdrop. Island display and supported templates still need a device test."
+                    : "Xiaomi did not report Focus Notification access, or this device could not check it. The normal Android notification remains available. HyperNotification cannot grant this access.")
+                .setPositiveButton("OK", null).show());
+        });
         button(root,"View connection diagnostics", this::showDiagnostics);
         button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
         button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));

@@ -47,7 +47,7 @@ public final class TransferService extends Service {
     private final Runnable timeout = () -> finishWith("Transfer timed out. Please try again.", false);
 
     @Override public void onCreate() {
-        super.onCreate(); client = Nearby.getConnectionsClient(this);
+        super.onCreate(); client = Nearby.getConnectionsClient(this); HyperIslandDecorator.refresh(this, null);
         getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(CHANNEL, "File transfers", NotificationManager.IMPORTANCE_LOW));
     }
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
@@ -193,6 +193,7 @@ public final class TransferService extends Service {
             Bundle extras = new Bundle(); extras.putBoolean("android.requestPromotedOngoing", true);
             extras.putCharSequence("android.shortCriticalText", percent < 0 ? "Sharing" : percent + "%"); b.addExtras(extras);
         }
+        b.addExtras(HyperIslandDecorator.extras(this, text, percent));
         return b.build();
     }
     private Icon progressIcon(int percent) {

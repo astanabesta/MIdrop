@@ -14,6 +14,7 @@ public class ReceiverService extends HostApduService {
     static final int NOTIFICATION_ID = 4021;
     static final String ACTION_ACCEPT = "com.astanabesta.midrop.ACCEPT_TAP";
     private static final byte[] OK = {(byte) 0x90, 0};
+    @Override public void onCreate() { super.onCreate(); HyperIslandDecorator.refresh(this, null); }
     @Override public byte[] processCommandApdu(byte[] command, Bundle extras) {
         if (Protocol.isSelect(command)) {
             Diagnostics.event(this, "Receiver: NFC select received.");
@@ -53,6 +54,7 @@ public class ReceiverService extends HostApduService {
             promotion.putCharSequence("android.shortCriticalText", offer.count == 1 ? "1 file" : offer.count + " files");
             builder.addExtras(promotion).setOngoing(true).setOnlyAlertOnce(true);
         }
+        builder.addExtras(HyperIslandDecorator.extras(this, "Incoming request", -1));
         Notification n = builder.build();
         Diagnostics.event(this, "Receiver: incoming request notification posted.");
         manager.notify(NOTIFICATION_ID, n);

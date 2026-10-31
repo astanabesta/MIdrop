@@ -31,3 +31,6 @@ MIdrop's **Test iPhone NFC** screen is a diagnostic only; it does not detect iPh
 
 ### Connection diagnostics
 After a failed transfer, open MIdrop on **each phone** → **View connection diagnostics**. Tap **Copy** and share each log labelled sender or receiver. The local log stores event stages, times and error codes—not file names, network addresses or session secrets. Tap Clear to remove it. Keep the sender screen open during the test. Try the tap, accept, then move the devices apart while keeping them nearby. The logs help distinguish an NFC handoff, Nearby discovery, connection, verification, or transfer failure; they do not themselves fix the connection.
+
+### HyperNotification experiment
+MIdrop includes the Apache-2.0 HyperNotification library for preparing Xiaomi Super Island template data **only if Xiaomi reports that MIdrop has Focus Notification access**. Open **Check Super Island access** in MIdrop to query it; “not reported” includes devices where the query is unavailable and does not prove the exact cause. The library cannot grant Xiaomi approval or bypass access checks. Without reported access, MIdrop continues using its normal Android notification/Live Update. The native template and actions require real-device and vendor-permission testing; HyperOS decides final appearance.
