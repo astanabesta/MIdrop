@@ -50,6 +50,7 @@ public class SharingActivity extends Activity {
         TextView instructions = new TextView(this); instructions.setText("Keep this app open and both phones unlocked. On one phone tap Receive. On the other choose a photo, tap Find devices, then choose the receiver. Compare the connection codes on both phones."); root.addView(instructions);
         chosen = new TextView(this); chosen.setPadding(0,16,0,16); root.addView(chosen);
         status = new TextView(this); status.setText("Ready"); root.addView(status);
+        button(root,"Set up background receiving", () -> withPermissions(3));
         button(root,"Choose photo", () -> { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, 10); });
         button(root,"Receive a photo", () -> withPermissions(1));
         button(root,"Find devices and send", () -> { if (photo == null) { show("Choose a photo first."); return; } withPermissions(2); });
@@ -82,7 +83,7 @@ public class SharingActivity extends Activity {
         ArrayList<String> p = new ArrayList<>();
         if (Build.VERSION.SDK_INT >= 31) { p.add(Manifest.permission.BLUETOOTH_SCAN); p.add(Manifest.permission.BLUETOOTH_CONNECT); p.add(Manifest.permission.BLUETOOTH_ADVERTISE); }
         if (Build.VERSION.SDK_INT <= 32) { p.add(Manifest.permission.ACCESS_FINE_LOCATION); p.add(Manifest.permission.READ_EXTERNAL_STORAGE); }
-        if (Build.VERSION.SDK_INT >= 33) p.add(Manifest.permission.NEARBY_WIFI_DEVICES);
+        if (Build.VERSION.SDK_INT >= 33) { p.add(Manifest.permission.NEARBY_WIFI_DEVICES); p.add(Manifest.permission.POST_NOTIFICATIONS); }
         ArrayList<String> missing = new ArrayList<>(); for (String s : p) if (checkSelfPermission(s) != PackageManager.PERMISSION_GRANTED) missing.add(s);
         if (!missing.isEmpty()) { pendingAction = action; requestPermissions(missing.toArray(new String[0]), 12); } else startAction(action);
     }
@@ -91,6 +92,7 @@ public class SharingActivity extends Activity {
         if (request == 12) { for (int r : results) if (r != PackageManager.PERMISSION_GRANTED) { show("Nearby permissions are required. Enable them in app settings."); return; } startAction(pendingAction); }
     }
     private void startAction(int action) {
+        if (action == 3) { show("Setup complete. Keep NFC, Wi-Fi and Bluetooth enabled. Background tap requests will appear as notifications."); return; }
         resetConnections(); sending = action == 2; peers.removeAllViews();
         if (sending) {
             show("Searching for nearby receivers…");
