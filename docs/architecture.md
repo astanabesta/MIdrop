@@ -1,13 +1,13 @@
-# Photo-sharing prototype architecture
+# Prototype architecture
 
-The initial approved NFC feasibility test remains available as a separate screen. The expanded prototype prioritizes usable sharing with device-list fallback, not an unproven NFC gesture.
+Two flows coexist: the original foreground manual photo transfer and the experimental NFC-triggered file transfer.
 
-- One native Android application, Android 10+ and Google Play services required, installed on both phones.
-- Sender selects one image with Android's document picker or receives an image via ACTION_SEND. Receiver explicitly starts foreground Nearby Connections advertising. Sender discovers available receivers and chooses one.
-- Both users must compare Nearby's authentication digits and confirm. The connected sender offers only image metadata; the receiver separately approves the image before file data is sent. Nearby's FILE payload handles the transfer. Sender and receiver display progress, and receiver saves to MediaStore Pictures/MIdrop after a successful transfer.
-- No server, user account, phone identifier store or background service. No automatic NFC trigger. No claim that file exchange, background routing or performance works on the target phones until tested physically. Discovery needs Android permissions, Google Play services, Wi-Fi/Bluetooth and possibly Xiaomi configuration.
-- Nearby is an encrypted transport, but authentication depends on people comparing the codes. The prototype treats incoming content as untrusted; received image bytes are not decoded or validated before saving. This is not production-hardened, and the UI is a functional prototype.
-- Original NFC experiment: sender enables reader mode and SELECTs a fixed AID; receiver Android host card emulation answers and logs. HCE, unlock and routing restrictions apply; it is isolated from photo transfer.
+## NFC flow
+- A share intent enters TapActivity with Android-granted URI access, supporting one or up to 25 files. Sender generates a fresh 128-bit public session ID and 256-bit secret, starts Nearby advertising using only the public ID, and enables NFC reader mode while visible.
+- Sender SELECTs the HCE application and sends a fixed-length, versioned APDU containing the ID, secret, creation timestamp and count. Receiver HCE validates length, age and count, then posts an actionable notification. HCE needs permission to notify and may require the receiver to be unlocked, depending on Android and NFC settings. Only one request is pending at a time. The request expires after two minutes.
+- Decline marks the request consumed. Accept opens TapActivity via an explicit immutable PendingIntent; this respects background activity restrictions but means acceptance opens a screen. Receiver discovers the public session ID and connects. The sender and receiver exchange HMAC proofs binding the NFC secret, session ID, role, and Nearby authentication digits before any files are offered. This prototype has not been independently security-audited; physical tap proximity does not authenticate a person's identity.
+- Following receiver consent, files are sent sequentially using metadata and Nearby FILE payloads. Sender waits for a save acknowledgement before offering the next file. The receiver saves images to Pictures/MIdrop and other files to Download/MIdrop using scoped MediaStore. The sender sees a final status after acknowledgements. Failures and partial files are reported; a pending MediaStore entry is deleted on save failure. Both activities need to remain open.
+- No service or network server is intentionally kept running permanently. The HCE service may be started by the OS for NFC; Android/HyperOS rules, notifications, NFC routing and force-stop behavior can prevent operation. Hyper Island display is OS-controlled.
 
-## Verification
-GitHub Actions runs the protocol unit tests and builds a debug APK. On the two real devices, test both sender roles, Gallery share, reject/accept paths, matching codes, interrupted transfer, saving, NFC experiment and battery/permission restrictions. Automated unit checks do not replace real-device tests.
+## Verification and caveats
+GitHub Actions runs unit tests for NFC command parsing and authentication proofs, and compiles a debug APK. CI does not verify Nearby APIs, actual NFC hardware, URI permissions from third-party Gallery apps, notification actions, transfer correctness, or multi-file behavior on real devices. No background transfer, identity verification, access revocation, restart recovery, retries or production security review is provided. Test both directions on the exact devices before relying on it. Manual Nearby photo sharing remains a fallback.

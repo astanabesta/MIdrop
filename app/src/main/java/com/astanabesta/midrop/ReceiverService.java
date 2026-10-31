@@ -28,7 +28,7 @@ public class ReceiverService extends HostApduService {
         long oldTime = getSharedPreferences("tap", MODE_PRIVATE).getLong("created", 0);
         boolean pending = getSharedPreferences("tap", MODE_PRIVATE).getBoolean("pending", false);
         if (old.equals(offer.publicName()) && !pending) return new byte[]{(byte)0x69, (byte)0x85};
-        if (!old.equals(offer.publicName()) && System.currentTimeMillis() - oldTime < TapOffer.TTL_MS) return new byte[]{(byte)0x69, (byte)0x85};
+        if (pending && !old.equals(offer.publicName()) && System.currentTimeMillis() - oldTime < TapOffer.TTL_MS) return new byte[]{(byte)0x69, (byte)0x85};
         getSharedPreferences("tap", MODE_PRIVATE).edit().putString("id",offer.publicName()).putLong("created",offer.created).putBoolean("pending", true).apply();
         manager.createNotificationChannel(new NotificationChannel("offers", "Incoming file requests", NotificationManager.IMPORTANCE_HIGH));
         if (manager.getNotificationChannel("offers").getImportance() == NotificationManager.IMPORTANCE_NONE) return new byte[]{(byte)0x69, (byte)0x85};
