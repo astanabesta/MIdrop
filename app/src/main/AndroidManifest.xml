@@ -17,6 +17,7 @@
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <application android:icon="@mipmap/ic_launcher" android:label="MIdrop" android:allowBackup="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".MainActivity" android:exported="false" />
+        <activity android:name=".IphoneProbeActivity" android:exported="false" />
         <activity android:name=".SharingActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

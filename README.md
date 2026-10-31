@@ -25,3 +25,6 @@ The NFC handshake test remains accessible from the home screen. See [architectur
 
 ### Hyper Island experiment (Android 16)
 The short-lived incoming request now asks Android to promote it as an ongoing notification while the sender is waiting. Accept and Decline remain available, and the notification expires when the two-minute request expires. On supported Xiaomi software this may be shown in Hyper Island; the system and user settings make the final decision. Check MIdrop's notification settings for Live Updates or promoted notifications if available. On unsupported devices it remains a normal notification. The transfer must not be assumed to continue in the background.
+
+### Experimental iPhone compatibility test
+MIdrop's **Test iPhone NFC** screen is a diagnostic only; it does not detect iPhone identity or send by AirDrop. When an iPhone is available, follow [the test plan](docs/iphone-feasibility.md) and share the results. MIdrop cannot yet automatically select an iPhone or send to its AirDrop without the system picker.

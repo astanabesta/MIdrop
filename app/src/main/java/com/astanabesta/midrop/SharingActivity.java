@@ -55,6 +55,7 @@ public class SharingActivity extends Activity {
         button(root,"Receive a photo", () -> withPermissions(1));
         button(root,"Find devices and send", () -> { if (photo == null) { show("Choose a photo first."); return; } withPermissions(2); });
         button(root,"Stop / start over", this::reset);
+        button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
         button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));
         TextView label = new TextView(this); label.setText("Nearby devices:"); root.addView(label);
         ScrollView scroll = new ScrollView(this); peers = new LinearLayout(this); peers.setOrientation(LinearLayout.VERTICAL); scroll.addView(peers); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
