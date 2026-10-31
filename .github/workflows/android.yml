@@ -26,7 +26,7 @@ jobs:
           if [ "$code" -ne 0 ]; then
             while IFS= read -r line; do
               echo "::error::${line//%/%25}"
-            done < <(grep -E '^e: |^error: |^\* What went wrong:|^> |^\* Where:|^Build file |^Execution failed|^Caused by:' "$RUNNER_TEMP/midrop-build.log" | head -30)
+            done < <(grep -E '^e: |^error: |^\* What went wrong:|^> |^\* Where:|^Build file |^Execution failed|^Caused by:' "$RUNNER_TEMP/midrop-build.log" | grep -v "^> Task" | tail -30)
           fi
           exit "$code"
       - name: Upload APK
