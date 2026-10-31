@@ -32,8 +32,10 @@ public class ReceiverService extends HostApduService {
         getSharedPreferences("tap", MODE_PRIVATE).edit().putString("id",offer.publicName()).putLong("created",offer.created).putBoolean("pending", true).apply();
         manager.createNotificationChannel(new NotificationChannel("offers", "Incoming file requests", NotificationManager.IMPORTANCE_HIGH));
         if (manager.getNotificationChannel("offers").getImportance() == NotificationManager.IMPORTANCE_NONE) return new byte[]{(byte)0x69, (byte)0x85};
-        Intent accept = new Intent(this, TapActivity.class).setAction(ACTION_ACCEPT).putExtra("offer", command).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        PendingIntent yes = PendingIntent.getActivity(this, NOTIFICATION_ID, accept, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Intent accept = new Intent(this, TransferService.class).setAction(ACTION_ACCEPT).putExtra("offer", command);
+        PendingIntent yes = PendingIntent.getForegroundService(this, NOTIFICATION_ID, accept, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        Intent open = new Intent(this, SharingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent details = PendingIntent.getActivity(this, NOTIFICATION_ID, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Intent decline = new Intent(this, DeclineReceiver.class);
         PendingIntent no = PendingIntent.getBroadcast(this, NOTIFICATION_ID, decline, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         long remaining = Math.max(1, Math.min(TapOffer.TTL_MS, offer.created + TapOffer.TTL_MS - System.currentTimeMillis()));
@@ -41,7 +43,7 @@ public class ReceiverService extends HostApduService {
                 .setContentTitle("Nearby device wants to share")
                 .setContentText(offer.count + (offer.count == 1 ? " file" : " files") + " · accept or decline")
                 .setStyle(new Notification.BigTextStyle().bigText("A nearby device wants to share " + offer.count + (offer.count == 1 ? " file." : " files.")))
-                .setContentIntent(yes).setAutoCancel(true).setTimeoutAfter(remaining)
+                .setContentIntent(details).setAutoCancel(true).setTimeoutAfter(remaining)
                 .addAction(new Notification.Action.Builder(null, "Decline", no).build())
                 .addAction(new Notification.Action.Builder(null, "Accept", yes).build());
         if (Build.VERSION.SDK_INT >= 36) {

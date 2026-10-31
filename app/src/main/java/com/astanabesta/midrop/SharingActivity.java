@@ -45,24 +45,50 @@ public class SharingActivity extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         client = Nearby.getConnectionsClient(this);
-        LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(36,36,36,36);
-        TextView title = new TextView(this); title.setText("MIdrop · Photo sharing"); title.setTextSize(25); root.addView(title);
-        TextView instructions = new TextView(this); instructions.setText("Keep this app open and both phones unlocked. On one phone tap Receive. On the other choose a photo, tap Find devices, then choose the receiver. Compare the connection codes on both phones."); root.addView(instructions);
-        chosen = new TextView(this); chosen.setPadding(0,16,0,16); root.addView(chosen);
-        status = new TextView(this); status.setText("Ready"); root.addView(status);
+        Ui.setupWindow(this);
+        ScrollView page = new ScrollView(this); page.setFillViewport(true); page.setBackgroundColor(Ui.BACK);
+        LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,22),Ui.dp(this,24),Ui.dp(this,28));
+        TextView brand = Ui.text(this,"◉  MIdrop",20,Ui.INK,true); root.addView(brand);
+        Ui.space(this,root,28);
+        TextView label = Ui.text(this,"A BETTER WAY TO SHARE",10,Ui.BLUE,true); root.addView(label);
+        Ui.space(this,root,9);
+        TextView title = Ui.text(this,"Close enough\nto connect.",30,Ui.INK,true); root.addView(title);
+        Ui.space(this,root,8);
+        TextView instructions = Ui.text(this,"Share what matters with a simple tap.",14,Ui.MUTED,false); root.addView(instructions);
+        Ui.space(this,root,22);
+        LinearLayout hero = new LinearLayout(this); hero.setGravity(android.view.Gravity.CENTER); hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setBackground(Ui.shape(android.graphics.Color.rgb(232,239,255),Ui.dp(this,24)));
+        TextView symbol = Ui.centered(this,"◎",76,Ui.BLUE,true); hero.addView(symbol);
+        TextView heroText = Ui.centered(this,"Bring phones together",13,Ui.INK,true); hero.addView(heroText);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1,Ui.dp(this,150)); root.addView(hero,hp);
+        Ui.space(this,root,15);
+        status = Ui.text(this,"●  Set up receiving to get started",12,Ui.MUTED,true); root.addView(status);
+        Ui.space(this,root,14);
+        chosen = Ui.text(this,"No photo selected",12,Ui.MUTED,false); root.addView(chosen);
+        Ui.space(this,root,15);
         button(root,"Set up background receiving", () -> withPermissions(3));
+        Ui.space(this,root,10);
+        TextView caption = Ui.text(this,"SEND FROM ANY APP",10,Ui.MUTED,true); root.addView(caption);
+        Ui.space(this,root,8);
+        TextView guide = Ui.text(this,"Choose files in Gallery or Files, then tap Share → MIdrop. Bring the phones together.",13,Ui.MUTED,false); root.addView(guide);
+        Ui.space(this,root,16);
+        TextView manual = Ui.text(this,"MANUAL SHARING",10,Ui.MUTED,true); root.addView(manual);
+        Ui.space(this,root,9);
         button(root,"Choose photo", () -> { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, 10); });
         button(root,"Receive a photo", () -> withPermissions(1));
         button(root,"Find devices and send", () -> { if (photo == null) { show("Choose a photo first."); return; } withPermissions(2); });
         button(root,"Stop / start over", this::reset);
+        Ui.space(this,root,10);
+        TextView experimental = Ui.text(this,"EXPERIMENTAL TOOLS",10,Ui.MUTED,true); root.addView(experimental);
         button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
         button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));
-        TextView label = new TextView(this); label.setText("Nearby devices:"); root.addView(label);
-        ScrollView scroll = new ScrollView(this); peers = new LinearLayout(this); peers.setOrientation(LinearLayout.VERTICAL); scroll.addView(peers); root.addView(scroll, new LinearLayout.LayoutParams(-1,0,1));
-        setContentView(root);
+        Ui.space(this,root,8);
+        TextView deviceLabel = Ui.text(this,"Nearby devices",13,Ui.INK,true); root.addView(deviceLabel);
+        peers = new LinearLayout(this); peers.setOrientation(LinearLayout.VERTICAL); root.addView(peers);
+        page.addView(root); setContentView(page);
         readSharedIntent(getIntent()); updatePhoto();
     }
-    private void button(LinearLayout root, String label, Runnable action) { Button b = new Button(this); b.setText(label); b.setOnClickListener(v -> action.run()); root.addView(b); }
+    private void button(LinearLayout root, String label, Runnable action) { Button b = Ui.button(this, label, label.equals("Set up background receiving"), action); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, Ui.dp(this,50)); p.bottomMargin = Ui.dp(this,8); root.addView(b,p); }
     private void readSharedIntent(Intent intent) {
         if (Intent.ACTION_SEND.equals(intent.getAction()) && intent.getType() != null && intent.getType().startsWith("image/")) {
             Uri u = intent.getParcelableExtra(Intent.EXTRA_STREAM);

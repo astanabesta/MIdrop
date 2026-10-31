@@ -48,10 +48,20 @@ public class TapActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         client = Nearby.getConnectionsClient(this); nfc = NfcAdapter.getDefaultAdapter(this);
-        LinearLayout root = new LinearLayout(this); root.setPadding(36,36,36,36); root.setOrientation(LinearLayout.VERTICAL);
-        TextView title = new TextView(this); title.setText("MIdrop · Tap to share"); title.setTextSize(25); root.addView(title);
-        status = new TextView(this); status.setPadding(0,25,0,25); root.addView(status);
-        Button stop = new Button(this); stop.setText("Cancel"); stop.setOnClickListener(v -> finish()); root.addView(stop);
+        Ui.setupWindow(this);
+        LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24));
+        TextView brand = Ui.text(this,"◉  MIdrop",20,Ui.INK,true); root.addView(brand);
+        Ui.space(this,root,38);
+        TextView title = Ui.text(this,"Bring phones close.",27,Ui.INK,true); root.addView(title);
+        Ui.space(this,root,8);
+        root.addView(Ui.text(this,"Touch the backs of both phones together to start sharing.",14,Ui.MUTED,false));
+        Ui.space(this,root,28);
+        TextView hero = Ui.centered(this,"◎",95,Ui.BLUE,true); hero.setBackground(Ui.shape(android.graphics.Color.rgb(232,239,255),Ui.dp(this,28)));
+        root.addView(hero,new LinearLayout.LayoutParams(-1,Ui.dp(this,220)));
+        Ui.space(this,root,24);
+        status = Ui.text(this,"Getting ready…",14,Ui.INK,true); root.addView(status);
+        Ui.space(this,root,24);
+        Button stop = Ui.button(this,"Cancel",false,this::finish); root.addView(stop,new LinearLayout.LayoutParams(-1,Ui.dp(this,50)));
         setContentView(root);
         Intent intent = getIntent();
         if (ReceiverService.ACTION_ACCEPT.equals(intent.getAction())) {
