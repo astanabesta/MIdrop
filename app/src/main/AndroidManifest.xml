@@ -13,7 +13,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
-    <application android:label="MIdrop NFC Test" android:allowBackup="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <application android:icon="@mipmap/ic_launcher" android:label="MIdrop" android:allowBackup="false" android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity android:name=".MainActivity" android:exported="false" />
         <activity android:name=".SharingActivity" android:exported="true">
             <intent-filter>
