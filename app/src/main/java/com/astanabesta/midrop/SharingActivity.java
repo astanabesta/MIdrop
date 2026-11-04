@@ -91,6 +91,7 @@ public class SharingActivity extends Activity {
         });
         button(root,"Run Super Island test", this::runIslandTest);
         button(root,"View connection diagnostics", this::showDiagnostics);
+        button(root,"Test iPhone radio (experimental)", () -> startActivity(new Intent(this, IphoneRadioTestActivity.class)));
         button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
         button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));
         Ui.space(this,root,8);
