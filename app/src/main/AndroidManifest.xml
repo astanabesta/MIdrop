@@ -40,6 +40,7 @@
             </intent-filter>
         </activity>
         <receiver android:name=".DeclineReceiver" android:exported="false" />
+        <service android:name=".LinkProbeService" android:exported="false" android:foregroundServiceType="connectedDevice" />
         <service android:name=".TransferService" android:exported="false" android:foregroundServiceType="connectedDevice" />
         <service android:name=".ReceiverService" android:exported="true" android:permission="android.permission.BIND_NFC_SERVICE">
             <intent-filter><action android:name="android.nfc.cardemulation.action.HOST_APDU_SERVICE" /></intent-filter>

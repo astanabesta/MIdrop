@@ -91,6 +91,17 @@ public class SharingActivity extends Activity {
         });
         button(root,"Run Super Island test", this::runIslandTest);
         button(root,"View connection diagnostics", this::showDiagnostics);
+        button(root,"Check Quick Share link (experimental)", () -> {
+            try {
+                startForegroundService(new Intent(this, LinkProbeService.class));
+                new AlertDialog.Builder(this).setTitle("Link check running")
+                    .setMessage("For the next 60 seconds, open Quick Share as you normally do to send to the iPhone. No file needs to be sent. Then return to MIdrop and copy connection diagnostics. The check records only broad interface categories; it cannot prove access to the Apple link.")
+                    .setPositiveButton("OK", null).show();
+            } catch (RuntimeException e) {
+                Diagnostics.event(this, "iPhone link check: could not start (" + e.getClass().getSimpleName() + ").");
+                new AlertDialog.Builder(this).setMessage("Could not start the link check. See connection diagnostics.").setPositiveButton("OK", null).show();
+            }
+        });
         button(root,"Test iPhone radio (experimental)", () -> startActivity(new Intent(this, IphoneRadioTestActivity.class)));
         button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
         button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));
