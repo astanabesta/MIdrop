@@ -38,10 +38,39 @@ public final class IphoneRadioTestActivity extends Activity {
         Ui.space(this, root, 18);
         result = Ui.text(this, "Tap Start to observe for 20 seconds. No addresses, names or raw radio data are saved.", 14, Ui.INK, true); root.addView(result);
         Ui.space(this, root, 18);
+        root.addView(Ui.button(this, "Check phone capabilities", false, this::checkCapabilities));
         root.addView(Ui.button(this, "Start 20-second scan", false, this::start));
         root.addView(Ui.button(this, "Stop", false, () -> stopScan(true)));
         root.addView(Ui.button(this, "Done", false, this::finish));
         setContentView(root);
+    }
+    /** Read-only platform capability flags; none establishes AirDrop interoperability. */
+    private void checkCapabilities() {
+        if (scanning) stopScan(true);
+        String observe = "unknown", annotation = "unavailable before Android 17", aware = "unknown";
+        try {
+            android.nfc.NfcAdapter nfc = android.nfc.NfcAdapter.getDefaultAdapter(this);
+            if (nfc == null) { observe = "no NFC"; annotation = "no NFC"; }
+            else {
+                if (Build.VERSION.SDK_INT >= 35) observe = nfc.isObserveModeSupported() ? "supported" : "not supported";
+                else observe = "unavailable before Android 15";
+                if (Build.VERSION.SDK_INT >= 37) {
+                    Object value = android.nfc.NfcAdapter.class.getMethod("isReaderModeAnnotationSupported").invoke(nfc);
+                    annotation = Boolean.TRUE.equals(value) ? "supported" : "not supported";
+                }
+            }
+        } catch (Exception | LinkageError ignored) { observe += " (check incomplete)"; }
+        try {
+            if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE)) aware = "not advertised";
+            else {
+                android.net.wifi.aware.WifiAwareManager manager = (android.net.wifi.aware.WifiAwareManager) getSystemService(WIFI_AWARE_SERVICE);
+                aware = manager == null ? "advertised; service unavailable" : (manager.isAvailable() ? "advertised and available" : "advertised but currently unavailable");
+            }
+        } catch (RuntimeException ignored) { aware = "check unavailable"; }
+        String report = "Android API " + Build.VERSION.SDK_INT + "\nNFC observe mode: " + observe
+            + "\nNFC polling annotation: " + annotation + "\nWi-Fi Aware: " + aware;
+        result.setText(report + "\n\nThese are general device flags only. They do not confirm access to Quick Share's Apple link, iPhone identification, or an AirDrop transfer.");
+        Diagnostics.event(this, "iPhone capability: API=" + Build.VERSION.SDK_INT + "; observe=" + observe + "; annotation=" + annotation + "; Wi-Fi Aware=" + aware + ".");
     }
     private void start() {
         if (scanning) return;
