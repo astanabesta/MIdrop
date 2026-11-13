@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Signal design system (day) — dark-first concept, follows system day/night. -->
+<resources>
+    <color name="mid_bg">#F2F2EF</color>
+    <color name="mid_card">#FBFBF9</color>
+    <color name="mid_line">#DEDEDA</color>
+    <color name="mid_ink">#14161A</color>
+    <color name="mid_muted">#61666D</color>
+    <color name="mid_accent">#A8CF0B</color>
+    <color name="mid_on_accent">#14161A</color>
+    <color name="mid_ok">#2FA36B</color>
+    <color name="mid_err">#D64533</color>
+    <color name="mid_track">#D8D8D2</color>
+</resources>

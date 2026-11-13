@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Day parent; values-night/themes.xml supplies the dark parent. Tokens switch via colors.xml. -->
+    <style name="Theme.MIdrop" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/mid_bg</item>
+        <item name="android:colorAccent">@color/mid_accent</item>
+        <item name="android:textColorPrimary">@color/mid_ink</item>
+        <item name="android:colorControlActivated">@color/mid_accent</item>
+    </style>
+</resources>

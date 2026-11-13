@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Signal design system (night) — near-black graphite, lime reserved for live state. -->
+<resources>
+    <color name="mid_bg">#0C0D0F</color>
+    <color name="mid_card">#15171A</color>
+    <color name="mid_line">#272A2F</color>
+    <color name="mid_ink">#EDEEEF</color>
+    <color name="mid_muted">#8B9096</color>
+    <color name="mid_accent">#C3F53C</color>
+    <color name="mid_on_accent">#101106</color>
+    <color name="mid_ok">#3ECF8E</color>
+    <color name="mid_err">#FF6B5E</color>
+    <color name="mid_track">#22252A</color>
+</resources>

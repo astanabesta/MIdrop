@@ -213,7 +213,7 @@ public final class TransferService extends Service {
         stopForeground(STOP_FOREGROUND_REMOVE);
         Intent open = new Intent(this, SharingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent details = PendingIntent.getActivity(this, 3, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        Notification n = new Notification.Builder(this, CHANNEL).setSmallIcon(success ? android.R.drawable.stat_sys_download_done : android.R.drawable.stat_notify_error)
+        Notification n = new Notification.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_stat_midrop)
                 .setContentTitle(success ? "MIdrop · complete" : "MIdrop · transfer stopped")
                 .setContentText(text).setContentIntent(details).setAutoCancel(true).build();
         getSystemService(NotificationManager.class).notify(ReceiverService.NOTIFICATION_ID, n); stopSelf();

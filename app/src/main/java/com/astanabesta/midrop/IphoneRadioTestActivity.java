@@ -32,11 +32,11 @@ public final class IphoneRadioTestActivity extends Activity {
         super.onCreate(state);
         Ui.setupWindow(this);
         LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24));
-        root.addView(Ui.text(this, "iPhone radio research", 25, Ui.INK, true));
+        root.addView(Ui.displayText(this, "iPhone radio research", 25, true));
         Ui.space(this, root, 12);
-        root.addView(Ui.text(this, "Experimental observation only. This does not send files, identify an iPhone, or trigger AirDrop. Nearby Apple-format radio messages can also come from other devices and can be spoofed. Android may filter some beacons.", 14, Ui.MUTED, false));
+        root.addView(Ui.bodyText(this, "Experimental observation only. This does not send files, identify an iPhone, or trigger AirDrop. Nearby Apple-format radio messages can also come from other devices and can be spoofed. Android may filter some beacons.", 14, 400, Ui.muted(this)));
         Ui.space(this, root, 18);
-        result = Ui.text(this, "Tap Start to observe for 20 seconds. No addresses, names or raw radio data are saved.", 14, Ui.INK, true); root.addView(result);
+        result = Ui.bodyText(this, "Tap Start to observe for 20 seconds. No addresses, names or raw radio data are saved.", 14, 600, Ui.ink(this)); root.addView(result);
         Ui.space(this, root, 18);
         root.addView(Ui.button(this, "Check phone capabilities", false, this::checkCapabilities));
         root.addView(Ui.button(this, "Start 20-second scan", false, this::start));

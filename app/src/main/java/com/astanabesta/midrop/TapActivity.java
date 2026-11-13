@@ -1,6 +1,7 @@
 package com.astanabesta.midrop;
 
 import android.Manifest;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.NotificationManager;
 import android.content.ContentValues;
@@ -18,7 +19,9 @@ import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Base64;
+import android.view.Gravity;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import com.google.android.gms.nearby.Nearby;
@@ -30,7 +33,10 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
-/** NFC bootstrap + authenticated Nearby transfer, while this transfer screen is visible. */
+/**
+ * NFC bootstrap + authenticated Nearby transfer, while this transfer screen is visible.
+ * Signal design: one lime signal that pulses while the device waits for the tap.
+ */
 public class TapActivity extends Activity {
     private static final String SERVICE = "com.astanabesta.midrop.tap.v1";
     private final ArrayList<Uri> files = new ArrayList<>();
@@ -44,25 +50,38 @@ public class TapActivity extends Activity {
     private Payload incoming;
     private ParcelFileDescriptor outgoing;
     private long outgoingId = -1;
+    private ValueAnimator pulse;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         client = Nearby.getConnectionsClient(this); nfc = NfcAdapter.getDefaultAdapter(this);
         Ui.setupWindow(this);
         LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24));
-        TextView brand = Ui.text(this,"◉  MIdrop",20,Ui.INK,true); root.addView(brand);
-        Ui.space(this,root,38);
-        TextView title = Ui.text(this,"Bring phones close.",27,Ui.INK,true); root.addView(title);
+
+        root.addView(Ui.displayText(this,"MIdrop",20,false));
+        Ui.space(this,root,30);
+        root.addView(Ui.displayText(this,"Bring phones close.",27,true));
         Ui.space(this,root,8);
-        root.addView(Ui.text(this,"Touch the backs of both phones together to start sharing.",14,Ui.MUTED,false));
-        Ui.space(this,root,28);
-        TextView hero = Ui.centered(this,"◎",95,Ui.BLUE,true); hero.setBackground(Ui.shape(android.graphics.Color.rgb(232,239,255),Ui.dp(this,28)));
-        root.addView(hero,new LinearLayout.LayoutParams(-1,Ui.dp(this,220)));
+        root.addView(Ui.bodyText(this,"Touch the backs of both phones together to start sharing.",14,400,Ui.muted(this)));
         Ui.space(this,root,24);
-        status = Ui.text(this,"Getting ready…",14,Ui.INK,true); root.addView(status);
+
+        LinearLayout hero = new LinearLayout(this); hero.setGravity(Gravity.CENTER);
+        hero.setBackground(Ui.shape(Ui.card(this), Ui.dp(this,Ui.R_HERO)));
+        ImageView ring = new ImageView(this); ring.setImageResource(R.drawable.ic_nfc_ring); ring.setColorFilter(Ui.accent(this));
+        hero.addView(ring, new LinearLayout.LayoutParams(Ui.dp(this,95),Ui.dp(this,95)));
+        root.addView(hero, new LinearLayout.LayoutParams(-1,Ui.dp(this,220)));
+
+        pulse = ValueAnimator.ofFloat(0.5f, 1f);
+        pulse.setDuration(1300); pulse.setRepeatCount(ValueAnimator.INFINITE); pulse.setRepeatMode(ValueAnimator.REVERSE);
+        pulse.addUpdateListener(an -> ring.setImageAlpha((int)(128 + 127 * (Float)an.getAnimatedValue())));
+        pulse.start();
+
+        Ui.space(this,root,24);
+        status = Ui.bodyText(this,"Getting ready\u2026",14,600,Ui.ink(this)); root.addView(status);
         Ui.space(this,root,24);
         Button stop = Ui.button(this,"Cancel",false,this::finish); root.addView(stop,new LinearLayout.LayoutParams(-1,Ui.dp(this,50)));
         setContentView(root);
+
         Intent intent = getIntent();
         if (ReceiverService.ACTION_ACCEPT.equals(intent.getAction())) {
             getSystemService(NotificationManager.class).cancel(ReceiverService.NOTIFICATION_ID);
@@ -101,7 +120,7 @@ public class TapActivity extends Activity {
                 .addOnSuccessListener(v -> { Diagnostics.event(this, "Sender: advertising ready."); advertising = true; show("Touch the backs of both unlocked phones together. Keep this screen open."); enableNfc(); })
                 .addOnFailureListener(e -> { Diagnostics.error(this, "Sender: advertising failed", e); show("Could not start sharing. Check nearby permissions."); });
         } else {
-            show("Connecting to sender… Keep this screen open.");
+            show("Connecting to sender\u2026 Keep this screen open.");
             client.startDiscovery(SERVICE, discovery, new DiscoveryOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build())
                 .addOnFailureListener(e -> show("Could not find sender: " + e.getMessage()));
         }
@@ -113,7 +132,7 @@ public class TapActivity extends Activity {
             iso.connect(); if (!Protocol.isReply(iso.transceive(Protocol.select()))) throw new IllegalStateException("MIdrop receiver not found");
             byte[] reply = iso.transceive(offer.command());
             if (reply == null || reply.length != 2 || reply[0] != (byte)0x90 || reply[1] != 0) throw new IllegalStateException("Receiver unavailable or notifications disabled");
-            runOnUiThread(() -> { Diagnostics.event(this, "Sender: NFC request delivered."); requested = true; if (nfc != null) nfc.disableReaderMode(this); show("Request sent. Waiting for receiver to accept…"); });
+            runOnUiThread(() -> { Diagnostics.event(this, "Sender: NFC request delivered."); requested = true; if (nfc != null) nfc.disableReaderMode(this); show("Request sent. Waiting for receiver to accept\u2026"); });
         } catch (Exception e) { Diagnostics.error(this, "Sender: NFC handoff failed", e); runOnUiThread(() -> show("Tap failed: " + e.getMessage() + ". Check receiver setup and try again.")); }
         finally { try { iso.close(); } catch (Exception ignored) {} }
     }
@@ -135,7 +154,7 @@ public class TapActivity extends Activity {
         @Override public void onConnectionResult(String id, ConnectionResolution result) {
             if (!result.getStatus().isSuccess()) { Diagnostics.event(TapActivity.this, "Sender: connection failed (Nearby code " + result.getStatus().getStatusCode() + ")."); show("Connection rejected or failed."); return; }
             Diagnostics.event(TapActivity.this, "Sender: connection established.");
-            endpoint = id; client.stopDiscovery(); client.stopAdvertising(); show("Verifying NFC session…");
+            endpoint = id; client.stopDiscovery(); client.stopAdvertising(); show("Verifying NFC session\u2026");
             try {
                 JSONObject m = new JSONObject(); m.put("kind","proof");
                 m.put("proof", Base64.encodeToString(SessionProof.calculate(offer.secret,offer.id,digits,sender ? "sender" : "receiver"),Base64.NO_WRAP)); send(m);
@@ -154,12 +173,12 @@ public class TapActivity extends Activity {
                     if (kind.equals("proof") && !verified) {
                         byte[] proof = Base64.decode(msg.getString("proof"),Base64.DEFAULT);
                         if (!SessionProof.verify(offer.secret,offer.id,digits,sender ? "receiver" : "sender",proof)) { fail("Security verification failed. No file sent."); return; }
-                        Diagnostics.event(TapActivity.this, "Sender: NFC session verified."); verified = true; show("Verified. " + (sender ? "Preparing files…" : "Waiting for files…")); if (sender) sendManifest();
+                        Diagnostics.event(TapActivity.this, "Sender: NFC session verified."); verified = true; show("Verified. " + (sender ? "Preparing files\u2026" : "Waiting for files\u2026")); if (sender) sendManifest();
                     } else if (!verified) fail("Unverified sender.");
                     else if (!sender && kind.equals("file") && incoming == null && !saving && !offerAccepted && receivedCount < offer.count) {
                         incomingName = safeName(msg.optString("name", "file")); incomingMime = msg.optString("mime", "application/octet-stream");
                         if (incomingMime.length() > 128 || !incomingMime.contains("/")) incomingMime = "application/octet-stream";
-                        offerAccepted = true; simple("ready"); show("Receiving " + (receivedCount + 1) + " of " + offer.count + "…");
+                        offerAccepted = true; simple("ready"); show("Receiving " + (receivedCount + 1) + " of " + offer.count + "\u2026");
                     } else if (sender && kind.equals("ready")) sendFile();
                     else if (sender && kind.equals("saved")) { if (outgoing != null) savedEarly = true; else advanceFile(); }
                     else if (!sender && kind.equals("done") && receivedCount == offer.count) show("All files saved.");
@@ -170,7 +189,7 @@ public class TapActivity extends Activity {
         }
         @Override public void onPayloadTransferUpdate(String id, PayloadTransferUpdate update) {
             if (update.getPayloadId() == outgoingId) {
-                if (update.getStatus() == PayloadTransferUpdate.Status.SUCCESS) { closeOutgoing(); if (savedEarly) { savedEarly = false; advanceFile(); } else show("Sent. Waiting for save confirmation…"); }
+                if (update.getStatus() == PayloadTransferUpdate.Status.SUCCESS) { closeOutgoing(); if (savedEarly) { savedEarly = false; advanceFile(); } else show("Sent. Waiting for save confirmation\u2026"); }
                 else if (update.getStatus() == PayloadTransferUpdate.Status.FAILURE || update.getStatus() == PayloadTransferUpdate.Status.CANCELED) fail("Transfer failed.");
                 else if (update.getTotalBytes() > 0) show("Sending " + (currentIndex+1) + "/" + files.size() + ": " + 100 * update.getBytesTransferred() / update.getTotalBytes() + "%");
             }
@@ -190,7 +209,9 @@ public class TapActivity extends Activity {
     private String name(Uri uri) {
         try (Cursor c = getContentResolver().query(uri,new String[]{OpenableColumns.DISPLAY_NAME},null,null,null)) { if (c != null && c.moveToFirst()) return c.getString(0); } catch (Exception ignored) {} return "file";
     }
-    private static String safeName(String s) { if (s == null) return "file"; s = s.replaceAll("[\\\\/\\p{Cntrl}]", "_").trim(); if (s.length() > 100) s = s.substring(s.length()-100); return s.isEmpty() || s.equals(".") || s.equals("..") ? "file" : s; }
+    static String safeName(String s) {
+        if (s == null) return "file"; s = s.replaceAll("[\\\\/\\p{Cntrl}]", "_").trim(); if (s.length() > 100) s = s.substring(s.length()-100); return s.isEmpty() || s.equals(".") || s.equals("..") ? "file" : s;
+    }
     private void sendFile() {
         if (outgoing != null || currentIndex >= files.size()) return;
         try { outgoing = getContentResolver().openFileDescriptor(files.get(currentIndex),"r"); if (outgoing == null) throw new IllegalStateException("Cannot open file"); Payload p = Payload.fromFile(outgoing); outgoingId = p.getId(); client.sendPayload(endpoint,p).addOnFailureListener(e -> fail("Cannot send file.")); }
@@ -219,5 +240,5 @@ public class TapActivity extends Activity {
     private void show(String text) { status.setText(text); }
     @Override protected void onPause() { if (sender) Diagnostics.event(this, "Sender: activity paused."); if (nfc != null) nfc.disableReaderMode(this); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if (sender && offer != null && !requested) enableNfc(); }
-    @Override protected void onDestroy() { if (sender) Diagnostics.event(this, "Sender: activity ended; nearby stopped."); if (nfc != null) nfc.disableReaderMode(this); client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); closeOutgoing(); super.onDestroy(); }
+    @Override protected void onDestroy() { if (sender) Diagnostics.event(this, "Sender: activity ended; nearby stopped."); if (nfc != null) nfc.disableReaderMode(this); if (pulse != null) pulse.cancel(); client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); closeOutgoing(); super.onDestroy(); }
 }

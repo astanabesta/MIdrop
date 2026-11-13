@@ -7,14 +7,17 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -27,13 +30,17 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
-/** Foreground-only, single-image transfer prototype. */
+/**
+ * Home (Signal design system). Foreground manual photo transfer + entry points for the
+ * background tap flow; all state colors and type come from Ui / resources.
+ */
 public class SharingActivity extends Activity {
     private static final String SERVICE = "com.astanabesta.midrop.share.v1";
     private static final Strategy STRATEGY = Strategy.P2P_POINT_TO_POINT;
+    private static final int PICK_PHOTO = 10, PICK_TAP_FILES = 20;
     private ConnectionsClient client;
     private LinearLayout peers;
-    private TextView status, chosen;
+    private TextView status, chosen, nfcVal, btVal, wifiVal;
     private Uri photo;
     private String endpoint, imageMime = "image/jpeg";
     private boolean sending, allowIncoming;
@@ -47,51 +54,74 @@ public class SharingActivity extends Activity {
         client = Nearby.getConnectionsClient(this);
         HyperIslandDecorator.refresh(this, null);
         Ui.setupWindow(this);
-        ScrollView page = new ScrollView(this); page.setFillViewport(true); page.setBackgroundColor(Ui.BACK);
+        ScrollView page = new ScrollView(this); page.setFillViewport(true); page.setBackgroundColor(Ui.back(this));
         LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,22),Ui.dp(this,24),Ui.dp(this,28));
-        TextView brand = Ui.text(this,"◉  MIdrop",20,Ui.INK,true); root.addView(brand);
-        Ui.space(this,root,28);
-        TextView label = Ui.text(this,"A BETTER WAY TO SHARE",10,Ui.BLUE,true); root.addView(label);
-        Ui.space(this,root,9);
-        TextView title = Ui.text(this,"Close enough\nto connect.",30,Ui.INK,true); root.addView(title);
-        Ui.space(this,root,8);
-        TextView instructions = Ui.text(this,"Share what matters with a simple tap.",14,Ui.MUTED,false); root.addView(instructions);
-        Ui.space(this,root,22);
-        LinearLayout hero = new LinearLayout(this); hero.setGravity(android.view.Gravity.CENTER); hero.setOrientation(LinearLayout.VERTICAL);
-        hero.setBackground(Ui.shape(android.graphics.Color.rgb(232,239,255),Ui.dp(this,24)));
-        TextView symbol = Ui.centered(this,"◎",76,Ui.BLUE,true); hero.addView(symbol);
-        TextView heroText = Ui.centered(this,"Bring phones together",13,Ui.INK,true); hero.addView(heroText);
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1,Ui.dp(this,150)); root.addView(hero,hp);
-        Ui.space(this,root,15);
-        status = Ui.text(this,"●  Set up receiving to get started",12,Ui.MUTED,true); root.addView(status);
+
+        root.addView(Ui.displayText(this,"MIdrop",20,false));
+        Ui.space(this,root,18);
+
+        LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER);
+        hero.setBackground(Ui.shape(Ui.card(this), Ui.dp(this,Ui.R_HERO)));
+        hero.setPadding(0,Ui.dp(this,16),0,Ui.dp(this,16));
+        ImageView ring = new ImageView(this); ring.setImageResource(R.drawable.ic_nfc_ring); ring.setColorFilter(Ui.accent(this));
+        hero.addView(ring, new LinearLayout.LayoutParams(Ui.dp(this,76),Ui.dp(this,76)));
+        Ui.space(this,hero,10);
+        hero.addView(Ui.centered(this,"Bring phones together",13,Ui.ink(this),600));
+        root.addView(hero, new LinearLayout.LayoutParams(-1,Ui.dp(this,150)));
         Ui.space(this,root,14);
-        chosen = Ui.text(this,"No photo selected",12,Ui.MUTED,false); root.addView(chosen);
-        Ui.space(this,root,15);
-        button(root,"Set up background receiving", () -> withPermissions(3));
+
+        status = Ui.bodyText(this,"●  Set up receiving to get started",12,600,Ui.accent(this));
+        root.addView(status);
         Ui.space(this,root,10);
-        TextView caption = Ui.text(this,"SEND FROM ANY APP",10,Ui.MUTED,true); root.addView(caption);
-        Ui.space(this,root,8);
-        TextView guide = Ui.text(this,"Choose files in Gallery or Files, then tap Share → MIdrop. Bring the phones together.",13,Ui.MUTED,false); root.addView(guide);
+        chosen = Ui.bodyText(this,"No photo selected",12,400,Ui.muted(this));
+        root.addView(chosen);
+        Ui.space(this,root,14);
+
+        button(root,"Set up background receiving",true, () -> withPermissions(3));
         Ui.space(this,root,16);
-        TextView manual = Ui.text(this,"MANUAL SHARING",10,Ui.MUTED,true); root.addView(manual);
-        Ui.space(this,root,9);
-        button(root,"Choose photo", () -> { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, 10); });
-        button(root,"Receive a photo", () -> withPermissions(1));
-        button(root,"Find devices and send", () -> { if (photo == null) { show("Choose a photo first."); return; } withPermissions(2); });
-        button(root,"Stop / start over", this::reset);
+
+        LinearLayout readout = new LinearLayout(this); readout.setOrientation(LinearLayout.VERTICAL);
+        GradientDrawable rdBg = Ui.shape(Ui.card(this), Ui.dp(this,Ui.R_CARD)); rdBg.setStroke(1,Ui.line(this));
+        readout.setBackground(rdBg); readout.setPadding(Ui.dp(this,14),Ui.dp(this,8),Ui.dp(this,14),Ui.dp(this,8));
+        nfcVal = readoutRow(readout,"NFC");
+        btVal = readoutRow(readout,"BLUETOOTH");
+        wifiVal = readoutRow(readout,"WIFI");
+        root.addView(readout, new LinearLayout.LayoutParams(-1,LinearLayout.LayoutParams.WRAP_CONTENT));
+        Ui.space(this,root,16);
+
+        root.addView(Ui.sectionLabel(this,"SEND FROM ANY APP"));
+        Ui.space(this,root,7);
+        root.addView(Ui.bodyText(this,"Choose files in Gallery or Files, then tap Share \u2192 MIdrop. Bring the phones together.",13,400,Ui.muted(this)));
         Ui.space(this,root,10);
-        TextView experimental = Ui.text(this,"EXPERIMENTAL TOOLS",10,Ui.MUTED,true); root.addView(experimental);
-        button(root,"Check Super Island access", () -> {
-            show("Checking Xiaomi Super Island access…");
+        button(root,"Share by tapping",false, () -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("*/*");
+            i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            try { startActivityForResult(i, PICK_TAP_FILES); } catch (Exception e) { show("Could not open the file picker."); }
+        });
+        Ui.space(this,root,16);
+
+        root.addView(Ui.sectionLabel(this,"MANUAL SHARING"));
+        Ui.space(this,root,7);
+        button(root,"Choose photo",false, () -> { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, PICK_PHOTO); });
+        button(root,"Receive a photo",false, () -> withPermissions(1));
+        button(root,"Find devices and send",false, () -> { if (photo == null) { show("Choose a photo first."); return; } withPermissions(2); });
+        button(root,"Stop / start over",false, this::reset);
+        Ui.space(this,root,16);
+
+        root.addView(Ui.sectionLabel(this,"EXPERIMENTAL TOOLS"));
+        Ui.space(this,root,7);
+        button(root,"Check Super Island access",false, () -> {
+            show("Checking Xiaomi Super Island access\u2026");
             HyperIslandDecorator.refresh(this, () -> new AlertDialog.Builder(this).setTitle("Super Island access")
                 .setMessage(HyperIslandDecorator.available()
                     ? "Xiaomi reports Focus Notification access for MIdrop. Island display and supported templates still need a device test."
                     : "Xiaomi did not report Focus Notification access, or this device could not check it. The normal Android notification remains available. HyperNotification cannot grant this access.")
                 .setPositiveButton("OK", null).show());
         });
-        button(root,"Run Super Island test", this::runIslandTest);
-        button(root,"View connection diagnostics", this::showDiagnostics);
-        button(root,"Check Quick Share link (experimental)", () -> {
+        button(root,"Run Super Island test",false, this::runIslandTest);
+        button(root,"View connection diagnostics",false, this::showDiagnostics);
+        button(root,"Check Quick Share link (experimental)",false, () -> {
             try {
                 startForegroundService(new Intent(this, LinkProbeService.class));
                 new AlertDialog.Builder(this).setTitle("Link check running")
@@ -102,16 +132,61 @@ public class SharingActivity extends Activity {
                 new AlertDialog.Builder(this).setMessage("Could not start the link check. See connection diagnostics.").setPositiveButton("OK", null).show();
             }
         });
-        button(root,"Test iPhone radio (experimental)", () -> startActivity(new Intent(this, IphoneRadioTestActivity.class)));
-        button(root,"Test iPhone NFC (experimental)", () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
-        button(root,"Open experimental NFC test", () -> startActivity(new Intent(this, MainActivity.class)));
+        button(root,"Test iPhone radio (experimental)",false, () -> startActivity(new Intent(this, IphoneRadioTestActivity.class)));
+        button(root,"Test iPhone NFC (experimental)",false, () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
+        button(root,"Open experimental NFC test",false, () -> startActivity(new Intent(this, MainActivity.class)));
+        Ui.space(this,root,18);
+
+        root.addView(Ui.bodyText(this,"Nearby devices",13,600,Ui.ink(this)));
         Ui.space(this,root,8);
-        TextView deviceLabel = Ui.text(this,"Nearby devices",13,Ui.INK,true); root.addView(deviceLabel);
-        peers = new LinearLayout(this); peers.setOrientation(LinearLayout.VERTICAL); root.addView(peers);
+        peers = new LinearLayout(this); peers.setOrientation(LinearLayout.VERTICAL);
+        root.addView(peers);
         page.addView(root); setContentView(page);
         readSharedIntent(getIntent()); updatePhoto();
     }
-    private void button(LinearLayout root, String label, Runnable action) { Button b = Ui.button(this, label, label.equals("Set up background receiving"), action); LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, Ui.dp(this,50)); p.bottomMargin = Ui.dp(this,8); root.addView(b,p); }
+
+    private TextView readoutRow(LinearLayout parent, String label) {
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0,Ui.dp(this,5),0,Ui.dp(this,5));
+        TextView l = Ui.bodyText(this,label,10,700,Ui.muted(this)); l.setLetterSpacing(0.08f);
+        row.addView(l);
+        int line = Ui.line(this);
+        View leader = new View(this);
+        leader.setBackground(Ui.shape((line & 0x00FFFFFF) | 0x40000000, 0));
+        LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(0,Ui.dp(this,1),1);
+        ll.leftMargin = Ui.dp(this,8); ll.rightMargin = Ui.dp(this,8);
+        row.addView(leader, ll);
+        TextView v = Ui.bodyText(this,"\u2014",10,700,Ui.muted(this));
+        row.addView(v);
+        parent.addView(row);
+        return v;
+    }
+    private void refreshReadout() {
+        try {
+            android.nfc.NfcAdapter n = android.nfc.NfcAdapter.getDefaultAdapter(this);
+            setReadout(nfcVal, n != null && n.isEnabled());
+        } catch (Exception e) { setReadout(nfcVal, false); }
+        try {
+            android.bluetooth.BluetoothAdapter bt = android.bluetooth.BluetoothAdapter.getDefaultAdapter();
+            setReadout(btVal, bt != null && bt.getState() == android.bluetooth.BluetoothAdapter.STATE_ON);
+        } catch (Exception e) { setReadout(btVal, false); }
+        try {
+            android.net.wifi.WifiManager w = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            setReadout(wifiVal, w != null && w.isWifiEnabled());
+        } catch (Exception e) { setReadout(wifiVal, false); }
+    }
+    private void setReadout(TextView v, boolean on) {
+        v.setText(on ? "ON" : "OFF");
+        v.setTextColor(on ? Ui.accent(this) : Ui.muted(this));
+    }
+    @Override protected void onResume() { super.onResume(); refreshReadout(); }
+
+    private void button(LinearLayout root, String label, boolean primary, Runnable action) {
+        Button b = Ui.button(this, label, primary, action);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, Ui.dp(this,50));
+        p.bottomMargin = Ui.dp(this,8);
+        root.addView(b,p);
+    }
     private static int islandTestGeneration;
     private void runIslandTest() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -132,7 +207,7 @@ public class SharingActivity extends Activity {
                 h.postDelayed(() -> {
                     if (generation != islandTestGeneration) return;
                     android.app.Notification.Builder b = new android.app.Notification.Builder(app, channel)
-                        .setSmallIcon(android.R.drawable.stat_sys_upload).setContentTitle("MIdrop · island test")
+                        .setSmallIcon(R.drawable.ic_stat_midrop).setContentTitle("MIdrop \u00b7 island test")
                         .setContentText("Test progress " + progress + "%")
                         .setOnlyAlertOnce(true).setOngoing(true).setProgress(100, progress, false)
                         .addExtras(HyperIslandDecorator.extras(app, "Test progress", progress));
@@ -148,7 +223,7 @@ public class SharingActivity extends Activity {
     private void showDiagnostics() {
         String text = EventLog.read(this);
         new AlertDialog.Builder(this).setTitle("Connection diagnostics")
-                .setMessage("Local event log — no file names, addresses or keys. Times are shown on this phone.\n\n" + text)
+                .setMessage("Local event log \u2014 no file names, addresses or keys. Times are shown on this phone.\n\n" + text)
                 .setPositiveButton("Copy", (d,w) -> {
                     android.content.ClipboardManager clipboard = (android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("MIdrop diagnostics", text));
@@ -165,7 +240,17 @@ public class SharingActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); readSharedIntent(intent); updatePhoto(); }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request,result,data);
-        if (request == 10 && result == RESULT_OK && data != null) { photo = data.getData(); updatePhoto(); }
+        if (request == PICK_PHOTO && result == RESULT_OK && data != null) { photo = data.getData(); updatePhoto(); }
+        if (request == PICK_TAP_FILES && result == RESULT_OK && data != null) {
+            ArrayList<Uri> uris = new ArrayList<>();
+            if (data.getClipData() != null) { for (int i = 0; i < data.getClipData().getItemCount(); i++) uris.add(data.getClipData().getItemAt(i).getUri()); }
+            else if (data.getData() != null) uris.add(data.getData());
+            if (uris.isEmpty() || uris.size() > 25) { show("Select between 1 and 25 files."); return; }
+            Intent send = new Intent(this, TapActivity.class);
+            if (uris.size() == 1) { send.setAction(Intent.ACTION_SEND); send.putExtra(Intent.EXTRA_STREAM, uris.get(0)); }
+            else { send.setAction(Intent.ACTION_SEND_MULTIPLE); send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris); }
+            startActivity(send);
+        }
     }
     private void updatePhoto() { chosen.setText(photo == null ? "No photo selected" : "Photo selected: " + displayName(photo)); }
     private String displayName(Uri uri) {
@@ -189,7 +274,7 @@ public class SharingActivity extends Activity {
         if (action == 3) { show("Setup complete. Keep NFC, Wi-Fi and Bluetooth enabled. Background tap requests will appear as notifications."); return; }
         resetConnections(); sending = action == 2; peers.removeAllViews();
         if (sending) {
-            show("Searching for nearby receivers…");
+            show("Searching for nearby receivers\u2026");
             client.startDiscovery(SERVICE, discovery, new DiscoveryOptions.Builder().setStrategy(STRATEGY).build()).addOnFailureListener(e -> show("Search failed: " + e.getMessage()));
         } else {
             show("Ready to receive. Keep this screen open.");
@@ -198,9 +283,10 @@ public class SharingActivity extends Activity {
     }
     private final EndpointDiscoveryCallback discovery = new EndpointDiscoveryCallback() {
         @Override public void onEndpointFound(String id, DiscoveredEndpointInfo info) {
-            Button b = new Button(SharingActivity.this); b.setText("Connect: " + info.getEndpointName());
-            b.setOnClickListener(v -> { b.setEnabled(false); show("Connecting…"); client.requestConnection(Build.MODEL, id, lifecycle).addOnFailureListener(e -> show("Connection failed: " + e.getMessage())); });
-            b.setTag(id); peers.addView(b);
+            Button b = Ui.button(SharingActivity.this, "Connect: " + info.getEndpointName(), false, () -> { });
+            b.setOnClickListener(v -> { b.setEnabled(false); show("Connecting\u2026"); client.requestConnection(Build.MODEL, id, lifecycle).addOnFailureListener(e -> show("Connection failed: " + e.getMessage())); });
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, Ui.dp(SharingActivity.this,44)); p.bottomMargin = Ui.dp(SharingActivity.this,8);
+            b.setTag(id); peers.addView(b, p);
         }
         @Override public void onEndpointLost(String id) { View v = peers.findViewWithTag(id); if (v != null) peers.removeView(v); }
     };
@@ -223,10 +309,10 @@ public class SharingActivity extends Activity {
             String mime = getContentResolver().getType(photo);
             if (mime == null || !mime.startsWith("image/")) { show("Only images are supported."); return; }
             JSONObject offer = new JSONObject(); offer.put("kind","offer"); offer.put("name", displayName(photo)); offer.put("mime",mime);
-            sendText(offer.toString()); show("Waiting for receiver to accept the photo…");
+            sendText(offer.toString()); show("Waiting for receiver to accept the photo\u2026");
         } catch (Exception e) { show("Could not prepare image: " + e.getMessage()); }
     }
-    private void sendText(String message) { if (endpoint != null) client.sendPayload(endpoint, Payload.fromBytes(message.getBytes(StandardCharsets.UTF_8))).addOnFailureListener(e -> show("Message failed: " + e.getMessage())); }
+    private void sendText(String message) { if (endpoint != null) client.sendPayload(endpoint, Payload.fromBytes(message.getBytes(StandardCharsets.UTF_8))).addOnFailureListener(e -> show("Message failed. ")); }
     private final PayloadCallback payloads = new PayloadCallback() {
         @Override public void onPayloadReceived(String id, Payload payload) {
             if (payload.getType() == Payload.Type.BYTES) {
@@ -238,7 +324,7 @@ public class SharingActivity extends Activity {
                         imageMime = mime;
                         String name = m.optString("name", "photo"); if (name.length() > 100) name = name.substring(0,100);
                         new AlertDialog.Builder(SharingActivity.this).setTitle("Receive photo?").setMessage(name)
-                            .setPositiveButton("Accept", (d,w) -> { allowIncoming = true; sendText("{\"kind\":\"accept\"}"); show("Waiting for photo…"); })
+                            .setPositiveButton("Accept", (d,w) -> { allowIncoming = true; sendText("{\"kind\":\"accept\"}"); show("Waiting for photo\u2026"); })
                             .setNegativeButton("Decline", (d,w) -> { sendText("{\"kind\":\"decline\"}"); show("Photo declined."); })
                             .setOnCancelListener(d -> { sendText("{\"kind\":\"decline\"}"); show("Photo declined."); }).show();
                     } else if (sending && kind.equals("accept")) sendPhoto();
@@ -268,13 +354,13 @@ public class SharingActivity extends Activity {
             outgoing = getContentResolver().openFileDescriptor(photo, "r");
             if (outgoing == null) throw new IllegalStateException("Cannot open selected photo");
             Payload file = Payload.fromFile(outgoing); outgoingId = file.getId();
-            client.sendPayload(endpoint,file).addOnFailureListener(e -> { closeOutgoing(); show("Sending failed: " + e.getMessage()); });
-            show("Sending photo…");
+            client.sendPayload(endpoint,file).addOnFailureListener(e -> { closeOutgoing(); show("Sending failed. " + e.getMessage()); });
+            show("Sending photo\u2026");
         } catch (Exception e) { closeOutgoing(); show("Cannot send photo: " + e.getMessage()); }
     }
     private void savePhoto(Payload payload) {
         String mime = imageMime;
-        show("Saving received photo…");
+        show("Saving received photo\u2026");
         new Thread(() -> {
             Uri dest = null;
             try {
@@ -292,8 +378,8 @@ public class SharingActivity extends Activity {
             } catch (Exception e) { if (dest != null) getContentResolver().delete(dest,null,null); runOnUiThread(() -> show("Could not save photo: " + e.getMessage())); }
         }).start();
     }
-    private void show(String text) { status.setText(text); }
-    private void closeOutgoing() { if (outgoing != null) { try { outgoing.close(); } catch (Exception ignored) {} outgoing = null; } outgoingId = -1; }
+    private void show(String text) { status.setText("\u25cf  " + text); }
+    private void closeOutgoing() { if (outgoing != null) { try { outgoing.close(); } catch (Exception ignored) {} } outgoingId = -1; }
     private void resetConnections() { client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); endpoint = null; allowIncoming = false; incoming = null; closeOutgoing(); }
     private void reset() { resetConnections(); peers.removeAllViews(); show("Ready."); }
     @Override protected void onDestroy() { resetConnections(); super.onDestroy(); }
