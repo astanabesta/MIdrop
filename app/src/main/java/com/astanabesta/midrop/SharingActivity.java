@@ -445,6 +445,6 @@ public class SharingActivity extends Activity {
     private void show(String text) { status.setText("\u25cf  " + text); }
     private void closeOutgoing() { if (outgoing != null) { try { outgoing.close(); } catch (Exception ignored) {} } outgoingId = -1; }
     private void resetConnections() { client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); endpoint = null; allowIncoming = false; incoming = null; closeOutgoing(); }
-    private void reset() { resetConnections(); peers.removeAllViews(); show("Ready."); }
+    private void reset() { radioGate = false; radioTimer.removeCallbacksAndMessages(null); resetConnections(); peers.removeAllViews(); show("Ready."); }
     @Override protected void onDestroy() { resetConnections(); restoreRadios(); super.onDestroy(); }
 }
