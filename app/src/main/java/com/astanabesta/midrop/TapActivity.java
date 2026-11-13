@@ -15,15 +15,19 @@ import android.nfc.Tag;
 import android.nfc.tech.IsoDep;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
 import android.util.Base64;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import com.google.android.gms.nearby.Nearby;
 import com.google.android.gms.nearby.connection.*;
 import org.json.JSONObject;
@@ -51,6 +55,11 @@ public class TapActivity extends Activity {
     private ParcelFileDescriptor outgoing;
     private long outgoingId = -1;
     private ValueAnimator pulse;
+    private boolean radioGate, changedBt, changedWifi, radiosDone, btWasOn, wifiWasOn;
+    private LinearLayout radioRow;
+    private TextView btLabel, wifiLabel;
+    private final Handler radioTimer = new Handler(Looper.getMainLooper());
+    private final Runnable radioPoll = this::pollRadios;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -115,6 +124,14 @@ public class TapActivity extends Activity {
     private void startSession() {
         if (sender) {
             if (nfc == null || !nfc.isEnabled()) { show("Turn NFC on and retry the share."); return; }
+        }
+        btWasOn = Radios.bluetoothOn(this); wifiWasOn = Radios.wifiOn(this);
+        if (!btWasOn && Radios.tryBluetoothOn(this)) changedBt = true;
+        if (Radios.bluetoothOn(this) && Radios.wifiOn(this)) startNearby();
+        else { radioGate = true; buildRadioRow(); radioTimer.post(radioPoll); }
+    }
+    private void startNearby() {
+        if (sender) {
             Diagnostics.event(this, "Sender: starting nearby advertising.");
             client.startAdvertising(offer.publicName(), SERVICE, lifecycle, new AdvertisingOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build())
                 .addOnSuccessListener(v -> { Diagnostics.event(this, "Sender: advertising ready."); advertising = true; show("Touch the backs of both unlocked phones together. Keep this screen open."); enableNfc(); })
@@ -124,6 +141,44 @@ public class TapActivity extends Activity {
             client.startDiscovery(SERVICE, discovery, new DiscoveryOptions.Builder().setStrategy(Strategy.P2P_POINT_TO_POINT).build())
                 .addOnFailureListener(e -> show("Could not find sender: " + e.getMessage()));
         }
+    }
+    private void buildRadioRow() {
+        if (radioRow != null) return;
+        radioRow = new LinearLayout(this);
+        radioRow.addView(radioItem("Bluetooth", true, () -> { if (!btWasOn) changedBt = true; Radios.openBluetooth(this); }));
+        radioRow.addView(radioItem("Wi-Fi", false, () -> { if (!wifiWasOn) changedWifi = true; Radios.openWifi(this); }));
+        LinearLayout root = (LinearLayout) status.getParent();
+        int index = 0; while (root.getChildAt(index) != status) index++;
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = Ui.dp(this, 12); lp.bottomMargin = Ui.dp(this, 12);
+        root.addView(radioRow, index + 1, lp);
+    }
+    private LinearLayout radioItem(String what, boolean bt, Runnable turnOn) {
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView label = Ui.bodyText(this, what + " off", 13, 500, Ui.muted(this));
+        if (bt) btLabel = label; else wifiLabel = label;
+        row.addView(label, new LinearLayout.LayoutParams(0, -2, 1f));
+        Button b = Ui.button(this, "Turn on", true, turnOn);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, Ui.dp(this, 46)); lp.leftMargin = Ui.dp(this, 10);
+        row.addView(b, lp);
+        return row;
+    }
+    private void pollRadios() {
+        if (isFinishing() || !radioGate) return;
+        boolean bt = Radios.bluetoothOn(this), wifi = Radios.wifiOn(this);
+        btLabel.setText(bt ? "Bluetooth on" : "Bluetooth turning on\u2026");
+        wifiLabel.setText(wifi ? "Wi-Fi on" : "Wi-Fi turning on\u2026");
+        if (bt && wifi) { radioGate = false; radioRow.setVisibility(View.GONE); startNearby(); return; }
+        radioTimer.postDelayed(radioPoll, 800);
+    }
+    private void restoreRadios() {
+        if (radiosDone) return; radiosDone = true;
+        radioGate = false; radioTimer.removeCallbacksAndMessages(null);
+        if (changedBt && !Radios.tryBluetoothOff(this) && Radios.bluetoothOn(this))
+            Toast.makeText(this, "Bluetooth left on — the system keeps apps from switching it off.", Toast.LENGTH_SHORT).show();
+        if (changedWifi && Radios.wifiOn(this))
+            Toast.makeText(this, "Wi-Fi left on — the system keeps apps from switching it off.", Toast.LENGTH_SHORT).show();
+        changedBt = changedWifi = false;
     }
     private void enableNfc() { if (sender && advertising && nfc != null && offer != null && !requested) nfc.enableReaderMode(this, this::onTag, NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK, null); }
     private void onTag(Tag tag) {
@@ -181,7 +236,7 @@ public class TapActivity extends Activity {
                         offerAccepted = true; simple("ready"); show("Receiving " + (receivedCount + 1) + " of " + offer.count + "\u2026");
                     } else if (sender && kind.equals("ready")) sendFile();
                     else if (sender && kind.equals("saved")) { if (outgoing != null) savedEarly = true; else advanceFile(); }
-                    else if (!sender && kind.equals("done") && receivedCount == offer.count) show("All files saved.");
+                    else if (!sender && kind.equals("done") && receivedCount == offer.count) { show("All files saved."); restoreRadios(); }
                 } catch (Exception e) { fail("Invalid or unverifiable message."); }
             } else if (payload.getType() == Payload.Type.FILE) {
                 if (!sender && verified && offerAccepted && incoming == null && !saving) incoming = payload; else client.cancelPayload(payload.getId());
@@ -199,7 +254,7 @@ public class TapActivity extends Activity {
             }
         }
     };
-    private void advanceFile() { currentIndex++; if (currentIndex < files.size()) sendManifest(); else { simple("done"); show("All files sent and saved."); } }
+    private void advanceFile() { currentIndex++; if (currentIndex < files.size()) sendManifest(); else { simple("done"); show("All files sent and saved."); restoreRadios(); } }
     private void sendManifest() {
         if (!verified || currentIndex >= files.size()) return;
         Uri file = files.get(currentIndex);
@@ -236,9 +291,9 @@ public class TapActivity extends Activity {
         }).start();
     }
     private void closeOutgoing() { if (outgoing != null) try { outgoing.close(); } catch (Exception ignored) {} outgoing = null; outgoingId = -1; }
-    private void fail(String error) { Diagnostics.event(this, "Sender: transfer failed."); show(error); client.stopAllEndpoints(); closeOutgoing(); }
+    private void fail(String error) { Diagnostics.event(this, "Sender: transfer failed."); show(error); client.stopAllEndpoints(); closeOutgoing(); restoreRadios(); }
     private void show(String text) { status.setText(text); }
     @Override protected void onPause() { if (sender) Diagnostics.event(this, "Sender: activity paused."); if (nfc != null) nfc.disableReaderMode(this); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if (sender && offer != null && !requested) enableNfc(); }
-    @Override protected void onDestroy() { if (sender) Diagnostics.event(this, "Sender: activity ended; nearby stopped."); if (nfc != null) nfc.disableReaderMode(this); if (pulse != null) pulse.cancel(); client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); closeOutgoing(); super.onDestroy(); }
+    @Override protected void onDestroy() { if (sender) Diagnostics.event(this, "Sender: activity ended; nearby stopped."); if (nfc != null) nfc.disableReaderMode(this); if (pulse != null) pulse.cancel(); client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); closeOutgoing(); restoreRadios(); super.onDestroy(); }
 }

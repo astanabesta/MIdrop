@@ -11,6 +11,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
@@ -21,6 +23,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import com.google.android.gms.nearby.Nearby;
 import com.google.android.gms.nearby.connection.*;
 import org.json.JSONObject;
@@ -48,6 +51,9 @@ public class SharingActivity extends Activity {
     private ParcelFileDescriptor outgoing;
     private long outgoingId = -1;
     private int pendingAction;
+    private boolean radioGate, changedBt, changedWifi, radiosDone, btWasOn, wifiWasOn;
+    private final Handler radioTimer = new Handler(Looper.getMainLooper());
+    private final Runnable radioPoll = this::pollRadios;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -272,6 +278,16 @@ public class SharingActivity extends Activity {
     }
     private void startAction(int action) {
         if (action == 3) { show("Setup complete. Keep NFC, Wi-Fi and Bluetooth enabled. Background tap requests will appear as notifications."); return; }
+        pendingAction = action;
+        if (Radios.bluetoothOn(this) && Radios.wifiOn(this)) { beginAction(action); return; }
+        btWasOn = Radios.bluetoothOn(this); wifiWasOn = Radios.wifiOn(this);
+        if (!btWasOn && Radios.tryBluetoothOn(this)) changedBt = true;
+        if (!Radios.bluetoothOn(this)) Radios.openBluetooth(this);
+        if (!Radios.wifiOn(this)) Radios.openWifi(this);
+        radioGate = true; show("Turn on Bluetooth and Wi-Fi\u2026 the share starts as soon as they are on.");
+        radioTimer.post(radioPoll);
+    }
+    private void beginAction(int action) {
         resetConnections(); sending = action == 2; peers.removeAllViews();
         if (sending) {
             show("Searching for nearby receivers\u2026");
@@ -280,6 +296,21 @@ public class SharingActivity extends Activity {
             show("Ready to receive. Keep this screen open.");
             client.startAdvertising(Build.MODEL, SERVICE, lifecycle, new AdvertisingOptions.Builder().setStrategy(STRATEGY).build()).addOnFailureListener(e -> show("Receive mode failed: " + e.getMessage()));
         }
+    }
+    private void pollRadios() {
+        if (isFinishing() || !radioGate) return;
+        if (Radios.bluetoothOn(this) && Radios.wifiOn(this)) { radioGate = false; refreshReadout(); beginAction(pendingAction); return; }
+        radioTimer.postDelayed(radioPoll, 800);
+    }
+    private void restoreRadios() {
+        if (radiosDone) return; radiosDone = true;
+        radioGate = false; radioTimer.removeCallbacksAndMessages(null);
+        if (changedBt && !Radios.tryBluetoothOff(this) && Radios.bluetoothOn(this))
+            Toast.makeText(this, "Bluetooth left on — the system keeps apps from switching it off.", Toast.LENGTH_SHORT).show();
+        if (changedWifi && Radios.wifiOn(this))
+            Toast.makeText(this, "Wi-Fi left on — the system keeps apps from switching it off.", Toast.LENGTH_SHORT).show();
+        changedBt = changedWifi = false;
+        refreshReadout();
     }
     private final EndpointDiscoveryCallback discovery = new EndpointDiscoveryCallback() {
         @Override public void onEndpointFound(String id, DiscoveredEndpointInfo info) {
@@ -302,7 +333,7 @@ public class SharingActivity extends Activity {
             endpoint = id; client.stopDiscovery(); client.stopAdvertising(); show("Connected.");
             if (sending) offerPhoto();
         }
-        @Override public void onDisconnected(String id) { endpoint = null; allowIncoming = false; closeOutgoing(); show("Disconnected."); }
+        @Override public void onDisconnected(String id) { endpoint = null; allowIncoming = false; closeOutgoing(); show("Disconnected."); restoreRadios(); }
     };
     private void offerPhoto() {
         try {
@@ -382,5 +413,5 @@ public class SharingActivity extends Activity {
     private void closeOutgoing() { if (outgoing != null) { try { outgoing.close(); } catch (Exception ignored) {} } outgoingId = -1; }
     private void resetConnections() { client.stopDiscovery(); client.stopAdvertising(); client.stopAllEndpoints(); endpoint = null; allowIncoming = false; incoming = null; closeOutgoing(); }
     private void reset() { resetConnections(); peers.removeAllViews(); show("Ready."); }
-    @Override protected void onDestroy() { resetConnections(); super.onDestroy(); }
+    @Override protected void onDestroy() { resetConnections(); restoreRadios(); super.onDestroy(); }
 }
