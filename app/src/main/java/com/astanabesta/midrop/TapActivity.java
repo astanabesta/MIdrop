@@ -46,7 +46,7 @@ public class TapActivity extends Activity {
     private final ArrayList<Uri> files = new ArrayList<>();
     private ConnectionsClient client;
     private NfcAdapter nfc;
-    private TextView status;
+    private TextView status, tapSub;
     private TapOffer offer;
     private boolean sender, verified, requested, offerAccepted, saving, advertising, savedEarly;
     private String endpoint, digits, incomingName, incomingMime;
@@ -67,11 +67,10 @@ public class TapActivity extends Activity {
         Ui.setupWindow(this);
         LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24),Ui.dp(this,24));
 
-        root.addView(Ui.displayText(this,"MIdrop",20,false));
-        Ui.space(this,root,30);
-        root.addView(Ui.displayText(this,"Bring phones close.",27,true));
+        root.addView(Ui.displayText(this,"TAP.",40,true));
         Ui.space(this,root,8);
-        root.addView(Ui.bodyText(this,"Touch the backs of both phones together to start sharing.",14,400,Ui.muted(this)));
+        tapSub = Ui.bodyText(this,"Hold this phone to a nearby MIdrop device. Files move when the link lands.",14,400,Ui.muted(this));
+        root.addView(tapSub);
         Ui.space(this,root,24);
 
         LinearLayout hero = new LinearLayout(this); hero.setGravity(Gravity.CENTER);
@@ -97,6 +96,7 @@ public class TapActivity extends Activity {
             offer = TapOffer.parse(intent.getByteArrayExtra("offer"), System.currentTimeMillis());
             String stored = getSharedPreferences("tap", MODE_PRIVATE).getString("id", "");
             if (offer == null || !stored.equals(offer.publicName()) || !getSharedPreferences("tap", MODE_PRIVATE).getBoolean("pending", false)) { show("This request expired or was already declined."); return; }
+            tapSub.setText("Hold near a friend\u2019s phone. The files follow.");
             getSharedPreferences("tap", MODE_PRIVATE).edit().putBoolean("pending", false).apply();
             sender = false; withPermissions();
         } else {

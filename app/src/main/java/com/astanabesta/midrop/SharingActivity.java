@@ -45,6 +45,7 @@ public class SharingActivity extends Activity {
     private LinearLayout peers;
     private TextView status, chosen, nfcVal, btVal, wifiVal;
     private Uri photo;
+    private boolean pendingPhotoSend;
     private String endpoint, imageMime = "image/jpeg";
     private boolean sending, allowIncoming;
     private Payload incoming;
@@ -63,102 +64,77 @@ public class SharingActivity extends Activity {
         ScrollView page = new ScrollView(this); page.setFillViewport(true); page.setBackgroundColor(Ui.back(this));
         LinearLayout root = Ui.column(this); root.setPadding(Ui.dp(this,24),Ui.dp(this,22),Ui.dp(this,24),Ui.dp(this,28));
 
-        root.addView(Ui.displayText(this,"MIdrop",20,false));
+        LinearLayout header = new LinearLayout(this); header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(Ui.displayText(this,"MIdrop",20,true));
+        header.addView(new TextView(this), new LinearLayout.LayoutParams(0,-2,1f));
+        ImageView bell = new ImageView(this); bell.setImageResource(R.drawable.ic_bell); bell.setColorFilter(Ui.ink(this));
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(Ui.dp(this,24),Ui.dp(this,24)); blp.rightMargin = -Ui.dp(this,4);
+        header.addView(bell, blp);
+        bell.setOnClickListener(v -> openMenu());
+        root.addView(header);
+        Ui.space(this,root,22);
+
+        root.addView(Ui.displayText(this,"DROP IT.",34,true));
+        Ui.space(this,root,6);
+        root.addView(Ui.bodyText(this,"Tap to share.",15,400,Ui.muted(this)));
         Ui.space(this,root,18);
-
-        LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER);
-        hero.setBackground(Ui.shape(Ui.card(this), Ui.dp(this,Ui.R_HERO)));
-        hero.setPadding(0,Ui.dp(this,16),0,Ui.dp(this,16));
-        ImageView ring = new ImageView(this); ring.setImageResource(R.drawable.ic_nfc_ring); ring.setColorFilter(Ui.accent(this));
-        hero.addView(ring, new LinearLayout.LayoutParams(Ui.dp(this,76),Ui.dp(this,76)));
-        Ui.space(this,hero,10);
-        hero.addView(Ui.centered(this,"Bring phones together",13,Ui.ink(this),600));
-        root.addView(hero, new LinearLayout.LayoutParams(-1,Ui.dp(this,150)));
-        Ui.space(this,root,14);
-
-        status = Ui.bodyText(this,"●  Set up receiving to get started",12,600,Ui.accent(this));
-        root.addView(status);
-        Ui.space(this,root,10);
-        chosen = Ui.bodyText(this,"No photo selected",12,400,Ui.muted(this));
-        root.addView(chosen);
-        Ui.space(this,root,14);
-
-        button(root,"Set up background receiving",true, () -> withPermissions(3));
-        Ui.space(this,root,16);
 
         LinearLayout readout = new LinearLayout(this); readout.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable rdBg = Ui.shape(Ui.card(this), Ui.dp(this,Ui.R_CARD)); rdBg.setStroke(1,Ui.line(this));
-        readout.setBackground(rdBg); readout.setPadding(Ui.dp(this,14),Ui.dp(this,8),Ui.dp(this,14),Ui.dp(this,8));
-        nfcVal = readoutRow(readout,"NFC");
-        btVal = readoutRow(readout,"BLUETOOTH");
-        wifiVal = readoutRow(readout,"WIFI");
+        readout.setBackground(rdBg); readout.setPadding(Ui.dp(this,14),Ui.dp(this,6),Ui.dp(this,14),Ui.dp(this,6));
+        nfcVal = readoutRow(readout, R.drawable.ic_nfc_ring, "NFC");
+        btVal = readoutRow(readout, R.drawable.ic_bluetooth, "BLUETOOTH");
+        wifiVal = readoutRow(readout, R.drawable.ic_wifi, "WIFI");
         root.addView(readout, new LinearLayout.LayoutParams(-1,LinearLayout.LayoutParams.WRAP_CONTENT));
-        Ui.space(this,root,16);
-
-        root.addView(Ui.sectionLabel(this,"SEND FROM ANY APP"));
-        Ui.space(this,root,7);
-        root.addView(Ui.bodyText(this,"Choose files in Gallery or Files, then tap Share \u2192 MIdrop. Bring the phones together.",13,400,Ui.muted(this)));
-        Ui.space(this,root,10);
-        button(root,"Share by tapping",false, () -> {
-            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("*/*");
-            i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-            try { startActivityForResult(i, PICK_TAP_FILES); } catch (Exception e) { show("Could not open the file picker."); }
-        });
-        Ui.space(this,root,16);
-
-        root.addView(Ui.sectionLabel(this,"MANUAL SHARING"));
-        Ui.space(this,root,7);
-        button(root,"Choose photo",false, () -> { Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i, PICK_PHOTO); });
-        button(root,"Receive a photo",false, () -> withPermissions(1));
-        button(root,"Find devices and send",false, () -> { if (photo == null) { show("Choose a photo first."); return; } withPermissions(2); });
-        button(root,"Stop / start over",false, this::reset);
-        Ui.space(this,root,16);
-
-        root.addView(Ui.sectionLabel(this,"EXPERIMENTAL TOOLS"));
-        Ui.space(this,root,7);
-        button(root,"Check Super Island access",false, () -> {
-            show("Checking Xiaomi Super Island access\u2026");
-            HyperIslandDecorator.refresh(this, () -> new AlertDialog.Builder(this).setTitle("Super Island access")
-                .setMessage(HyperIslandDecorator.available()
-                    ? "Xiaomi reports Focus Notification access for MIdrop. Island display and supported templates still need a device test."
-                    : "Xiaomi did not report Focus Notification access, or this device could not check it. The normal Android notification remains available. HyperNotification cannot grant this access.")
-                .setPositiveButton("OK", null).show());
-        });
-        button(root,"Run Super Island test",false, this::runIslandTest);
-        button(root,"View connection diagnostics",false, this::showDiagnostics);
-        button(root,"Check Quick Share link (experimental)",false, () -> {
-            try {
-                startForegroundService(new Intent(this, LinkProbeService.class));
-                new AlertDialog.Builder(this).setTitle("Link check running")
-                    .setMessage("For the next 60 seconds, open Quick Share as you normally do to send to the iPhone. No file needs to be sent. Then return to MIdrop and copy connection diagnostics. The check records only broad interface categories; it cannot prove access to the Apple link.")
-                    .setPositiveButton("OK", null).show();
-            } catch (RuntimeException e) {
-                Diagnostics.event(this, "iPhone link check: could not start (" + e.getClass().getSimpleName() + ").");
-                new AlertDialog.Builder(this).setMessage("Could not start the link check. See connection diagnostics.").setPositiveButton("OK", null).show();
-            }
-        });
-        button(root,"Test iPhone radio (experimental)",false, () -> startActivity(new Intent(this, IphoneRadioTestActivity.class)));
-        button(root,"Test iPhone NFC (experimental)",false, () -> startActivity(new Intent(this, IphoneProbeActivity.class)));
-        button(root,"Open experimental NFC test",false, () -> startActivity(new Intent(this, MainActivity.class)));
         Ui.space(this,root,18);
 
-        root.addView(Ui.bodyText(this,"Nearby devices",13,600,Ui.ink(this)));
+        root.addView(Ui.button(this,"Share by tapping",true, this::openTapPicker), new LinearLayout.LayoutParams(-1,Ui.dp(this,52)));
         Ui.space(this,root,8);
+        root.addView(Ui.bodyText(this,"Touch the backs of the phones together. That\u2019s the whole setup.",12,400,Ui.muted(this)));
+        Ui.space(this,root,16);
+
+        LinearLayout duo = new LinearLayout(this); duo.setOrientation(LinearLayout.HORIZONTAL);
+        Button recv = Ui.button(this,"Receive a photo",false, () -> withPermissions(1));
+        Button find = Ui.button(this,"Find devices and send",false, () -> { if (photo == null) { pendingPhotoSend = true; openPhotoPicker(); } else withPermissions(2); });
+        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(0,Ui.dp(this,50),1f); dl.rightMargin = Ui.dp(this,8);
+        duo.addView(recv, dl);
+        duo.addView(find, new LinearLayout.LayoutParams(0,Ui.dp(this,50),1f));
+        root.addView(duo);
+        Ui.space(this,root,8);
+        chosen = Ui.bodyText(this,"",12,400,Ui.muted(this));
+        root.addView(chosen);
+        Ui.space(this,root,6);
+
+        root.addView(rowcard(R.drawable.ic_zap, "NFC handshake test", "Check this device can share", () -> startActivity(new Intent(this, MainActivity.class))));
+        Ui.space(this,root,8);
+        root.addView(rowcard(R.drawable.ic_share, "iPhone NFC experiment", "Probe without sending files", () -> startActivity(new Intent(this, IphoneProbeActivity.class))));
+        Ui.space(this,root,8);
+        root.addView(rowcard(R.drawable.ic_radio, "iPhone radio research", "Observe nearby signals, read-only", () -> startActivity(new Intent(this, IphoneRadioTestActivity.class))));
+        Ui.space(this,root,20);
+
+        status = Ui.bodyText(this,"●  Set up receiving to get started",12,600,Ui.accent(this));
+        root.addView(status);
+        Ui.space(this,root,8);
+        root.addView(Ui.sectionLabel(this,"NEARBY DEVICES"));
+        Ui.space(this,root,6);
         peers = new LinearLayout(this); peers.setOrientation(LinearLayout.VERTICAL);
         root.addView(peers);
+        Ui.space(this,root,12);
+        root.addView(Ui.button(this,"Stop / start over",false,this::reset), new LinearLayout.LayoutParams(-1,Ui.dp(this,44)));
         page.addView(root); setContentView(page);
         readSharedIntent(getIntent()); updatePhoto();
     }
 
-    private TextView readoutRow(LinearLayout parent, String label) {
+    private TextView readoutRow(LinearLayout parent, int icon, String label) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0,Ui.dp(this,5),0,Ui.dp(this,5));
+        row.setPadding(0,Ui.dp(this,7),0,Ui.dp(this,7));
+        ImageView iv = new ImageView(this); iv.setImageResource(icon); iv.setColorFilter(Ui.muted(this));
+        row.addView(iv, new LinearLayout.LayoutParams(Ui.dp(this,15),Ui.dp(this,15)));
         TextView l = Ui.bodyText(this,label,10,700,Ui.muted(this)); l.setLetterSpacing(0.08f);
-        row.addView(l);
-        int line = Ui.line(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2,-2); lp.leftMargin = Ui.dp(this,10);
+        row.addView(l, lp);
         View leader = new View(this);
-        leader.setBackground(Ui.shape((line & 0x00FFFFFF) | 0x40000000, 0));
+        leader.setBackground(Ui.shape((Ui.line(this) & 0x00FFFFFF) | 0x40000000, 0));
         LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(0,Ui.dp(this,1),1);
         ll.leftMargin = Ui.dp(this,8); ll.rightMargin = Ui.dp(this,8);
         row.addView(leader, ll);
@@ -166,6 +142,63 @@ public class SharingActivity extends Activity {
         row.addView(v);
         parent.addView(row);
         return v;
+    }
+    private LinearLayout rowcard(int icon, String title, String sub, Runnable action) {
+        LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.HORIZONTAL); card.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable bg = Ui.shape(Ui.card(this), Ui.dp(this,Ui.R_CARD)); bg.setStroke(1,Ui.line(this));
+        card.setBackground(bg); card.setPadding(Ui.dp(this,14),Ui.dp(this,12),Ui.dp(this,14),Ui.dp(this,12));
+        card.setClickable(true); card.setFocusable(true); card.setOnClickListener(v -> action.run());
+        ImageView iv = new ImageView(this); iv.setImageResource(icon); iv.setColorFilter(Ui.ink(this));
+        card.addView(iv, new LinearLayout.LayoutParams(Ui.dp(this,20),Ui.dp(this,20)));
+        LinearLayout texts = new LinearLayout(this); texts.setOrientation(LinearLayout.VERTICAL);
+        texts.addView(Ui.bodyText(this,title,14,600,Ui.ink(this)));
+        texts.addView(Ui.bodyText(this,sub,12,400,Ui.muted(this)));
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0,-2,1f); tp.leftMargin = Ui.dp(this,12);
+        card.addView(texts, tp);
+        ImageView chev = new ImageView(this); chev.setImageResource(R.drawable.ic_chevron_right); chev.setColorFilter(Ui.muted(this));
+        card.addView(chev, new LinearLayout.LayoutParams(Ui.dp(this,18),Ui.dp(this,18)));
+        return card;
+    }
+    private void openPhotoPicker() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("image/*"); i.addCategory(Intent.CATEGORY_OPENABLE);
+        try { startActivityForResult(i, PICK_PHOTO); } catch (Exception e) { show("Could not open the photo picker."); }
+    }
+    private void openTapPicker() {
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE); i.setType("*/*"); i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        try { startActivityForResult(i, PICK_TAP_FILES); } catch (Exception e) { show("Could not open the file picker."); }
+    }
+    private void checkIslandAccess() {
+        show("Checking Xiaomi Super Island access\u2026");
+        HyperIslandDecorator.refresh(this, () -> new AlertDialog.Builder(this).setTitle("Super Island access")
+            .setMessage(HyperIslandDecorator.available()
+                ? "Xiaomi reports Focus Notification access for MIdrop. Island display and supported templates still need a device test."
+                : "Xiaomi did not report Focus Notification access, or this device could not check it. The normal Android notification remains available. HyperNotification cannot grant this access.")
+            .setPositiveButton("OK", null).show());
+    }
+    private void quickShareLinkCheck() {
+        try {
+            startForegroundService(new Intent(this, LinkProbeService.class));
+            new AlertDialog.Builder(this).setTitle("Link check running")
+                .setMessage("For the next 60 seconds, open Quick Share as you normally do to send to the iPhone. No file needs to be sent. Then return to MIdrop and copy connection diagnostics. The check records only broad interface categories; it cannot prove access to the Apple link.")
+                .setPositiveButton("OK", null).show();
+        } catch (RuntimeException e) {
+            Diagnostics.event(this, "iPhone link check: could not start (" + e.getClass().getSimpleName() + ").");
+            new AlertDialog.Builder(this).setMessage("Could not start the link check. See connection diagnostics.").setPositiveButton("OK", null).show();
+        }
+    }
+    private void openMenu() {
+        String[] items = { "Set up background receiving", "View connection diagnostics", "Check Super Island access", "Run Super Island test", "Check Quick Share link (experimental)" };
+        new AlertDialog.Builder(this).setTitle("MIdrop")
+            .setItems(items, (d, which) -> {
+                switch (which) {
+                    case 0: withPermissions(3); break;
+                    case 1: showDiagnostics(); break;
+                    case 2: checkIslandAccess(); break;
+                    case 3: runIslandTest(); break;
+                    default: quickShareLinkCheck(); break;
+                }
+            }).show();
     }
     private void refreshReadout() {
         try {
@@ -187,12 +220,6 @@ public class SharingActivity extends Activity {
     }
     @Override protected void onResume() { super.onResume(); refreshReadout(); }
 
-    private void button(LinearLayout root, String label, boolean primary, Runnable action) {
-        Button b = Ui.button(this, label, primary, action);
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, Ui.dp(this,50));
-        p.bottomMargin = Ui.dp(this,8);
-        root.addView(b,p);
-    }
     private static int islandTestGeneration;
     private void runIslandTest() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -246,7 +273,10 @@ public class SharingActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); readSharedIntent(intent); updatePhoto(); }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request,result,data);
-        if (request == PICK_PHOTO && result == RESULT_OK && data != null) { photo = data.getData(); updatePhoto(); }
+        if (request == PICK_PHOTO && result == RESULT_OK && data != null) {
+            photo = data.getData(); updatePhoto();
+            if (pendingPhotoSend) { pendingPhotoSend = false; withPermissions(2); }
+        }
         if (request == PICK_TAP_FILES && result == RESULT_OK && data != null) {
             ArrayList<Uri> uris = new ArrayList<>();
             if (data.getClipData() != null) { for (int i = 0; i < data.getClipData().getItemCount(); i++) uris.add(data.getClipData().getItemAt(i).getUri()); }
@@ -258,7 +288,10 @@ public class SharingActivity extends Activity {
             startActivity(send);
         }
     }
-    private void updatePhoto() { chosen.setText(photo == null ? "No photo selected" : "Photo selected: " + displayName(photo)); }
+    private void updatePhoto() {
+        if (photo == null) { chosen.setText(""); chosen.setVisibility(View.GONE); }
+        else { chosen.setText("Photo ready: " + displayName(photo)); chosen.setVisibility(View.VISIBLE); }
+    }
     private String displayName(Uri uri) {
         try (Cursor c = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) { if (c != null && c.moveToFirst()) return c.getString(0); }
         catch (Exception ignored) { }

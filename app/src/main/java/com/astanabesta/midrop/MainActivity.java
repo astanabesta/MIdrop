@@ -28,7 +28,9 @@ public class MainActivity extends Activity {
         LinearLayout root = Ui.column(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(Ui.dp(this,24), Ui.dp(this,24), Ui.dp(this,24), Ui.dp(this,24));
-        root.addView(Ui.displayText(this,"NFC handshake test",24,true));
+        root.addView(Ui.displayText(this,"Diagnostics",24,true));
+        Ui.space(this,root,4);
+        root.addView(Ui.bodyText(this,"NFC handshake test \u00b7 no files transferred",12,400,Ui.muted(this)));
         Ui.space(this,root,10);
         TextView help = Ui.bodyText(this,
             "Install on both phones. Choose Receiver on one and Sender on the other. Keep both unlocked and NFC on. Bring their backs close together. For a background test, press Home on the receiver; reopen it to inspect the log.\n\nThe sender must remain on this screen. This prototype does not transfer files.",
